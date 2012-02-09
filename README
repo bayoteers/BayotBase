@@ -8,6 +8,12 @@ useful to the BAYOT extensions.
 Features
 --------
 
-    * Load jQuery on each page.
+    * Load jQuery, Base.js, jquery.jsonrpc.js on each page.
 
     * Provide common navigation bar hooks.
+
+    * Ensure Javascript runtime has newer features (e.g.
+      Function.prototype.bind()).
+
+    * Simple infrastructure for making Bugzilla JSON-RPC calls, and displaying
+      a progress indicator while a call is in progress.
