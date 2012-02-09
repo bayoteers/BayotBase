@@ -1,0 +1,13 @@
+BayotBase
+---------
+
+This extension supplements built-in Bugzilla functionality in various ways
+useful to the BAYOT extensions.
+
+
+Features
+--------
+
+    * Load jQuery on each page.
+
+    * Provide common navigation bar hooks.
