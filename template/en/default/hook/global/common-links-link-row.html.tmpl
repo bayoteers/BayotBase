@@ -1,0 +1,16 @@
+
+<div id="bb_common_links">
+[%- FOREACH item IN bb_common_links -%]
+    <a
+    [% IF item.id %]
+        id="[% item.id %]"
+    [% END %]
+    [% IF item.href %]
+        href="[% item.href %]"
+    [% END %]
+    >[% item.text %]</a>
+    [% IF NOT loop.last %]
+        |
+    [% END %]
+[%- END -%]
+</div>
