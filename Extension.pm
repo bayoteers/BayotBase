@@ -57,4 +57,11 @@ sub template_before_process {
 }
 
 
+sub config_add_panels {
+    my ($self, $args) = @_;
+    my $modules = $args->{panel_modules};
+    $modules->{BayotBase} = "Bugzilla::Extension::BayotBase::Config";
+}
+
+
 __PACKAGE__->NAME;

@@ -19,8 +19,13 @@
   #   David Wilson <ext-david.3.wilson@nokia.com>
   #%]
 
-<script src="extensions/BayotBase/web/js/jquery-1.7.1.min.js"></script>
-<script src="extensions/BayotBase/web/js/es5-shim.min.js"></script>
+[%- IF Bugzilla.params.bb_use_debug_js -%]
+    <script src="extensions/BayotBase/web/js/jquery-1.7.1.js"></script>
+    <script src="extensions/BayotBase/web/js/es5-shim.js"></script>
+[%- ELSE -%]
+    <script src="extensions/BayotBase/web/js/jquery-1.7.1.min.js"></script>
+    <script src="extensions/BayotBase/web/js/es5-shim.min.js"></script>
+[%- END -%]
 <script src="extensions/BayotBase/web/js/jquery.jsonrpc.js"></script>
 <script src="extensions/BayotBase/web/js/Base.js"></script>
 <script src="extensions/BayotBase/web/js/bayot.rpc.js"></script>
