@@ -21,6 +21,22 @@
 
 
 /**
+ * Run a function, logging any exception thrown to the console. Used for
+ * debugging XMLHTTPRequest event handlers, whose exceptions are silently
+ * discarded.
+ */
+function absorb(fn)
+{
+    try {
+        return fn();
+    } catch(e) {
+        console.error('absorb(): %o', e);
+        throw e;
+    }
+}
+
+
+/**
  * RPC object. Wraps the parameters of a Bugzilla RPC up along with callbacks
  * indicating completion state.
  */
