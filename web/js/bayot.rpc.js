@@ -32,8 +32,11 @@ var Rpc = Base.extend({
      *      Method name.
      * @param params
      *      Object containing method parameters.
+     * @param immediate
+     *      Optional; if false, don't immediately start the RPC (e.g. if it is
+     *      going to be added to a queue). Defaults to true.
      */
-    constructor: function(namespace, method, params)
+    constructor: function(namespace, method, params, immediate)
     {
         this.namespace = namespace
         this.method = method;
@@ -41,10 +44,13 @@ var Rpc = Base.extend({
         this.response = null;
         this.error = null;
 
+        this.startedCb = jQuery.Callbacks();
         this.doneCb = jQuery.Callbacks();
         this.failCb = jQuery.Callbacks();
         this.completeCb = jQuery.Callbacks()
 
+        // Fires on start; first argument is the RPC object.
+        this.started = this.startedCb.add.bind(this.startedCb);
         // Fires on success; first argument is the RPC result.
         this.done = this.doneCb.add.bind(this.DoneCb);
         // Fires on failure; first argument is the RPC failure object.
@@ -52,13 +58,15 @@ var Rpc = Base.extend({
         // Always fires; first argument is this RPC object.
         this.complete = this.completeCb.add.bind(this.completeCb);
 
-        this._start();
+        if(immediate !== false) {
+            this.start();
+        }
     },
 
     /**
      * Start the RPC.
      */
-    _start: function()
+    start: function()
     {
         $.jsonRPC.setup({
             endPoint: 'jsonrpc.cgi',
@@ -70,6 +78,8 @@ var Rpc = Base.extend({
             success: this._onSuccess.bind(this),
             error: this._onError.bind(this)
         });
+
+        this.startedCb.fire(this);
     },
 
     /**
