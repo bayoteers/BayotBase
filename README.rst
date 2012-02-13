@@ -20,3 +20,20 @@ Features
 
     * Simple infrastructure for making Bugzilla JSON-RPC calls, and displaying
       a progress indicator while a call is in progress.
+
+
+Requirements
+------------
+
+    Currently requires hooks for which a patch is supplied for Bugzilla 3.6.2.
+
+
+Installation
+------------
+
+    Install Bugzilla as usual, copy the BayotBase directory to extensions, and
+    then from the Bugzilla installation root, execute::
+
+        patch -p1 < extensions/BayotBase/hooks_3.6.2.patch
+
+
