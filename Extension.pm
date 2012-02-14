@@ -19,7 +19,9 @@
 #   David Wilson <ext-david.3.wilson@nokia.com>
 
 package Bugzilla::Extension::BayotBase;
+
 use strict;
+use JSON;
 use base qw(Bugzilla::Extension);
 
 our $VERSION = '0.01';
@@ -47,6 +49,29 @@ sub build_common_links {
 }
 
 
+# Create a JSON object containing various useful Bugzilla runtime information.
+sub make_bb_config {
+    my ($args, $vars, $file) = @_;
+
+    my $config = {};
+    if(Bugzilla->user->id) {
+        $config->{user} = {
+            logged_in => JSON::true,
+            login => Bugzilla->user->login,
+            email => Bugzilla->user->email,
+            id => Bugzilla->user->id,
+            groups => [ sort map { $_->{name} } @{Bugzilla->user->groups} ]
+        };
+    } else {
+        $config->{user} = {
+            logged_in => JSON::false
+        };
+    }
+
+    $vars->{bb_config} = JSON->new->utf8->encode($config);
+}
+
+
 sub template_before_process {
     my ($self, $args) = @_;
 
@@ -54,6 +79,7 @@ sub template_before_process {
     my $file = $args->{file};
 
     build_common_links($args, $vars, $file);
+    make_bb_config($args, $vars, $file);
 }
 
 

@@ -25,6 +25,11 @@ use strict;
 use constant NAME => 'BayotBase';
 
 use constant REQUIRED_MODULES => [
+    {
+       package => 'libjson-pp-perl',
+       module => 'JSON::PP',
+       version =>  2.72
+    }
 ];
 
 use constant OPTIONAL_MODULES => [
