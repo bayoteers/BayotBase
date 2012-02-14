@@ -45,7 +45,10 @@ sub build_common_links {
         push @items, @$section_items;
     }
 
-    $vars->{bb_common_links} = \@items;
+    $vars->{bb_common_links} = [ sort
+        { ($a->{priority} || 999) <=> ($b->{priority} || 999) }
+        @items
+    ];
 }
 
 
