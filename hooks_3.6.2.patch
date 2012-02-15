@@ -1,3 +1,17 @@
+diff --git a/Bugzilla/Bug.pm b/Bugzilla/Bug.pm
+index 9596160..e1ceeab 100644
+--- a/Bugzilla/Bug.pm
++++ b/Bugzilla/Bug.pm
+@@ -652,6 +652,9 @@ sub update {
+     my $delta_ts = shift || $dbh->selectrow_array('SELECT LOCALTIMESTAMP(0)');
+ 
+     my ($changes, $old_bug) = $self->SUPER::update(@_);
++    Bugzilla::Hook::process('bug_start_of_update',
++                                                { bug => $self, timestamp => $delta_ts, changes => $changes,
++                                                  old_bug => $old_bug });
+ 
+     # Certain items in $changes have to be fixed so that they hold
+     # a name instead of an ID.
 diff --git a/Bugzilla/Search.pm b/Bugzilla/Search.pm
 index 7dabae9..34d46fa 100644
 --- a/Bugzilla/Search.pm
@@ -22,6 +36,18 @@ index 7dabae9..34d46fa 100644
      if (!$user->is_timetracker) {
          foreach my $field (TIMETRACKING_FIELDS) {
              @legal_fields = grep { $_->name ne $field } @legal_fields;
+diff --git a/editcomponents.cgi b/editcomponents.cgi
+index 70afd9c..f3cac66 100755
+--- a/editcomponents.cgi
++++ b/editcomponents.cgi
+@@ -144,6 +144,7 @@ if ($action eq 'new') {
+     $vars->{'message'} = 'component_created';
+     $vars->{'comp'} = $component;
+     $vars->{'product'} = $product;
++    Bugzilla::Hook::process("after_component_created", { vars => $vars });
+     delete_token($token);
+ 
+     $template->process("admin/components/list.html.tmpl", $vars)
 diff --git a/editparams.cgi b/editparams.cgi
 index a8dc0da..b80e6e8 100755
 --- a/editparams.cgi
@@ -56,6 +82,18 @@ index fc5f574..8b81a98 100755
      # We need to ensure that we respect the 'insider' status of
      # the first comment, if it has one. Either way, make a note
      # that this bug was cloned from another bug.
+diff --git a/template/en/default/bug/field.html.tmpl b/template/en/default/bug/field.html.tmpl
+index bb678d7..f360b35 100644
+--- a/template/en/default/bug/field.html.tmpl
++++ b/template/en/default/bug/field.html.tmpl
+@@ -189,6 +189,7 @@
+                            name="remove_[% field.name FILTER html %]">
+                Remove</label>
+            [% END %]
++           [% Hook.process('enhancedseealso') %]
+          </li>
+        [% END %]
+        [% '</ul>' IF value.size %]
 diff --git a/template/en/default/list/table.html.tmpl b/template/en/default/list/table.html.tmpl
 index 282ea51..15fd33c 100644
 --- a/template/en/default/list/table.html.tmpl
