@@ -1,0 +1,125 @@
+diff --git a/Bugzilla/Bug.pm b/Bugzilla/Bug.pm
+index a9b52f4..25f5d55 100644
+--- a/Bugzilla/Bug.pm
++++ b/Bugzilla/Bug.pm
+@@ -652,6 +652,9 @@ sub update {
+     my $delta_ts = shift || $dbh->selectrow_array('SELECT LOCALTIMESTAMP(0)');
+ 
+     my ($changes, $old_bug) = $self->SUPER::update(@_);
++    Bugzilla::Hook::process('bug_start_of_update',
++                                                { bug => $self, timestamp => $delta_ts, changes => $changes,
++                                                  old_bug => $old_bug });
+ 
+     # Certain items in $changes have to be fixed so that they hold
+     # a name instead of an ID.
+diff --git a/Bugzilla/Search.pm b/Bugzilla/Search.pm
+index c373f97..a423557 100644
+--- a/Bugzilla/Search.pm
++++ b/Bugzilla/Search.pm
+@@ -280,6 +280,8 @@ sub init {
+         push(@supptables, "LEFT JOIN flagtypes ON flagtypes.id = flags.type_id");
+     }
+ 
++    Bugzilla::Hook::process('buglist_supptables', { fields => \@fields, supptables => \@supptables });
++
+     my $minvotes;
+     if (defined $params->param('votes')) {
+         my $c = trim($params->param('votes'));
+@@ -339,6 +341,10 @@ sub init {
+     # All fields that don't have a . in their name should be specifyable
+     # in the URL directly.
+     my @legal_fields = grep { $_->name !~ /\./ } Bugzilla->get_fields;
++
++    # Hook allows clause into other tables than 'bugs'.
++    Bugzilla::Hook::process('buglist_supp_legal_fields', { fields => \@legal_fields });
++
+     if (!$user->is_timetracker) {
+         foreach my $field (TIMETRACKING_FIELDS) {
+             @legal_fields = grep { $_->name ne $field } @legal_fields;
+diff --git a/editcomponents.cgi b/editcomponents.cgi
+index 70afd9c..f3cac66 100755
+--- a/editcomponents.cgi
++++ b/editcomponents.cgi
+@@ -144,6 +144,7 @@ if ($action eq 'new') {
+     $vars->{'message'} = 'component_created';
+     $vars->{'comp'} = $component;
+     $vars->{'product'} = $product;
++    Bugzilla::Hook::process("after_component_created", { vars => $vars });
+     delete_token($token);
+ 
+     $template->process("admin/components/list.html.tmpl", $vars)
+diff --git a/editparams.cgi b/editparams.cgi
+index a8dc0da..b80e6e8 100755
+--- a/editparams.cgi
++++ b/editparams.cgi
+@@ -122,6 +122,8 @@ if ($action eq 'save' && $current_module) {
+         }
+ 
+         if ($changed) {
++            # Hook to test value
++            Bugzilla::Hook::process('check_parameter', { name => $name, value => $value });
+             if (exists $i->{'checker'}) {
+                 my $ok = $i->{'checker'}->($value, $i);
+                 if ($ok ne "") {
+diff --git a/enter_bug.cgi b/enter_bug.cgi
+index fc5f574..8b81a98 100755
+--- a/enter_bug.cgi
++++ b/enter_bug.cgi
+@@ -402,6 +402,7 @@ $vars->{'cloned_bug_id'}         = $cloned_bug_id;
+ 
+ $vars->{'token'}             = issue_session_token('createbug:');
+ 
++Bugzilla::Hook::process("enter_bug_url_fields", { vars => $vars });
+ 
+ my @enter_bug_fields = grep { $_->enter_bug } Bugzilla->active_custom_fields;
+ foreach my $field (@enter_bug_fields) {
+@@ -450,6 +451,8 @@ if ($cloned_bug_id) {
+         $vars->{$field_name} = $cloned_bug->$field_name;
+     }
+ 
++    Bugzilla::Hook::process("enter_bug_url_fields_cloned", { vars => $vars });
++
+     # We need to ensure that we respect the 'insider' status of
+     # the first comment, if it has one. Either way, make a note
+     # that this bug was cloned from another bug.
+diff --git a/template/en/default/bug/field.html.tmpl b/template/en/default/bug/field.html.tmpl
+index bb678d7..f360b35 100644
+--- a/template/en/default/bug/field.html.tmpl
++++ b/template/en/default/bug/field.html.tmpl
+@@ -189,6 +189,7 @@
+                            name="remove_[% field.name FILTER html %]">
+                Remove</label>
+            [% END %]
++           [% Hook.process('enhancedseealso') %]
+          </li>
+        [% END %]
+        [% '</ul>' IF value.size %]
+diff --git a/template/en/default/list/table.html.tmpl b/template/en/default/list/table.html.tmpl
+index b3fa7a4..8984703 100644
+--- a/template/en/default/list/table.html.tmpl
++++ b/template/en/default/list/table.html.tmpl
+@@ -72,6 +72,7 @@
+ [% PROCESS bug/time.html.tmpl %]
+ 
+ [% Hook.process("before_table") %]
++[% Hook.process("before_editable_fields") %]
+ 
+ [%############################################################################%]
+ [%# Table Header                                                             #%]
+@@ -193,6 +194,8 @@
+     [% FOREACH column = displaycolumns %]
+     <td [% 'style="white-space: nowrap"' IF NOT abbrev.$column.wrap %]
+         class="bz_[% column FILTER css_class_quote %]_column">
++[% Hook.process('field_start') %]
++
+       [% IF abbrev.$column.maxlength %]
+         <span title="[%- display_value(column, bug.$column) FILTER html %]">
+       [% END %]
+@@ -214,6 +217,7 @@
+       [% IF abbrev.$column.maxlength %]
+         </span>
+       [% END %]
++[% Hook.process('field_end') %]
+     </td>
+     [% END %]
+ 
