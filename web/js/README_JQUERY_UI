@@ -1,0 +1,9 @@
+
+When updating jQuery UI, create a build with the following components:
+
+    * resizable
+    * sortable
+    * datepicker
+    * draggable
+    * droppable
+
