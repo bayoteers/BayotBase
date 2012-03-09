@@ -1,9 +1,15 @@
 
 When updating jQuery UI, create a build with the following components:
 
-    * resizable
-    * sortable
-    * datepicker
-    * draggable
-    * droppable
+    * UI Core
+        * All
+    * Interactions
+        * draggable
+        * droppable
+        * resizable
+        * sortable
+    * Widgets
+        * tabs
+        * datepicker
 
+Theme: 'Smoothness' (simple gray colors should go with anything)
