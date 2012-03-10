@@ -46,8 +46,8 @@ sub build_common_links {
     }
 
     $vars->{bb_common_links} = [ sort
-        { ($a->{priority} || 999) <=> ($b->{priority} || 999) }
-        @items
+        { ($a->{priority} || 999) <=> ($b->{priority} || 999)
+            or ($a->{text} cmp $b->{text}) } @items
     ];
 }
 
