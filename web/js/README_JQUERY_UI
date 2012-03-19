@@ -9,6 +9,9 @@ When updating jQuery UI, create a build with the following components:
         * resizable
         * sortable
     * Widgets
+        * autocomplete
+        * button
+        * dialog
         * tabs
         * datepicker
 
