@@ -187,3 +187,48 @@ var RpcProgressView = {
 
 // TODO: this should be moved to somewhere sensible.
 $(document).ready($.proxy(RpcProgressView, "init"));
+
+/**
+ * Autocomplete handler for username fields
+ */
+var UserAutoComplete = Base.extend({
+    /*
+     * TODO Cache results localy
+     * TODO Queue calls to User.get()
+     */
+    constructor: function() {
+        this._respCallback = null;
+    },
+    /**
+     * Binds this autocomplete handler to input element(s) specified by
+     * the given selector.
+     */
+    bindElement: function(selector) {
+        $(selector).autocomplete({
+            minLength: 3,
+            delay: 1000,
+            source: $.proxy(this, "_complete"),
+        });
+    },
+    _complete: function(request, responce) {
+        this._respCallback = responce;
+        var terms = this._splitTerms(request.term.toLowerCase());
+        var rpc = new Rpc("User", "get", {match: terms});
+        rpc.done($.proxy(this, "_userGetDone"));
+    },
+    _splitTerms: function(term) {
+        var result = [];
+        var tmp = term.split(' ');
+        for (var i=0; i < tmp.length; i++) {
+            if (tmp[i].length > 0) result.push(tmp[i]);
+        }
+        return result;
+    },
+    _userGetDone: function(result) {
+        var users = [];
+        for (var i = 0; i < result.users.length; i++) {
+            users.push(result.users[i].name);
+        }
+        this._respCallback(users)
+    },
+});
