@@ -17,6 +17,7 @@
  *
  * Contributor(s):
  *   David Wilson <ext-david.3.wilson@nokia.com>
+ *   Pami Ketolainen <pami.ketolainen@gmail.com>
  */
 
 
@@ -66,13 +67,13 @@ var Rpc = Base.extend({
         this.completeCb = jQuery.Callbacks()
 
         // Fires on start; first argument is the RPC object.
-        this.started = this.startedCb.add.bind(this.startedCb);
+        this.started = $.proxy(this.startedCb, "add");
         // Fires on success; first argument is the RPC result.
-        this.done = this.doneCb.add.bind(this.DoneCb);
+        this.done = $.proxy(this.doneCb, "add");
         // Fires on failure; first argument is the RPC failure object.
-        this.fail = this.failCb.add.bind(this.failCb);
+        this.fail = $.proxy(this.failCb, "add");
         // Always fires; first argument is this RPC object.
-        this.complete = this.completeCb.add.bind(this.completeCb);
+        this.complete = $.proxy(this.completeCb, "add");
 
         if(immediate !== false) {
             this.start();
@@ -91,8 +92,8 @@ var Rpc = Base.extend({
 
         $.jsonRPC.request(this.method, {
             params: [this.params || {}],
-            success: this._onSuccess.bind(this),
-            error: this._onError.bind(this)
+            success: $.proxy(this, "_onSuccess"),
+            error: $.proxy(this, "_onError"),
         });
 
         this.startedCb.fire(this);
@@ -158,8 +159,8 @@ var RpcProgressView = {
         this._progress.css(this._CSS_PROPS);
         this._progress.hide();
         this._progress.appendTo('body');
-        $(document).ajaxSend(this._onAjaxSend.bind(this));
-        $(document).ajaxComplete(this._onAjaxComplete.bind(this));
+        $(document).ajaxSend($.proxy(this, "_onAjaxSend"));
+        $(document).ajaxComplete($.proxy(this, "_onAjaxComplete"));
     },
 
     /**
@@ -185,4 +186,4 @@ var RpcProgressView = {
 };
 
 // TODO: this should be moved to somewhere sensible.
-$(document).ready(RpcProgressView.init.bind(RpcProgressView));
+$(document).ready($.proxy(RpcProgressView, "init"));
