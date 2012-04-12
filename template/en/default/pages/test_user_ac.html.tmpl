@@ -20,14 +20,13 @@
   #%]
 
 [% PROCESS global/header.html.tmpl
-    title = "TreeViewPlus - "_ tvp_bug_ids.join(', ')
+    title = "Autocomplete user field test page"
 %]
 
 <script type="text/javascript">
 
 $(function() {
-    var complete = new UserAutoComplete();
-    complete.bindElement("#user");
+    new UserAutoComplete("#user");
 });
 
 </script>

@@ -196,20 +196,42 @@ var UserAutoComplete = Base.extend({
      * TODO Cache results localy
      * TODO Queue calls to User.get()
      */
-    constructor: function() {
+
+    /**
+     * Constructor
+     * @param element - Dom element or jQuery selector of the input field
+     */
+    constructor: function(element) {
+        this._element = $(element).first();
+        this._element.autocomplete({
+            minLength: 3,
+            delay: 500,
+            source: $.proxy(this, "_complete"),
+            focus: $.proxy(this, "_onItemFocus"),
+            select: $.proxy(this, "_onItemSelect"),
+        })
+        .data("autocomplete")._renderItem = function(ul, item) {
+            // Custom rendering for the suggestion list items
+            return $("<li></li>").data("item.autocomplete", item)
+                .append("<a>" + item.real_name + "</a>")
+                .appendTo(ul);
+        };
+
         this._respCallback = null;
     },
+
     /**
-     * Binds this autocomplete handler to input element(s) specified by
-     * the given selector.
+     * jQuery UI autocomplet item focus handler
      */
-    bindElement: function(selector) {
-        $(selector).autocomplete({
-            minLength: 3,
-            delay: 1000,
-            source: $.proxy(this, "_complete"),
-        });
+    _onItemFocus: function(event, ui) {
+        this._element.val(ui.item.name);
+        return false;
     },
+    _onItemSelect: function(event, ui) {
+        this._element.val(ui.item.name);
+        return false;        
+    },
+
     _complete: function(request, responce) {
         this._respCallback = responce;
         var terms = this._splitTerms(request.term.toLowerCase());
@@ -225,10 +247,6 @@ var UserAutoComplete = Base.extend({
         return result;
     },
     _userGetDone: function(result) {
-        var users = [];
-        for (var i = 0; i < result.users.length; i++) {
-            users.push(result.users[i].name);
-        }
-        this._respCallback(users)
+        this._respCallback(result.users)
     },
 });
