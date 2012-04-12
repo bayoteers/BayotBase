@@ -227,6 +227,7 @@ $.widget("bb.userautocomplete", {
     destroy: function()
     {
         this.element.autocomplete("destroy");
+        this.spinner.remove();
         $.Widge.prototype.destroy.apply(this);
     },
 
