@@ -188,25 +188,21 @@ var RpcProgressView = {
 // TODO: this should be moved to somewhere sensible.
 $(document).ready($.proxy(RpcProgressView, "init"));
 
-/**
- * Autocomplete handler for username fields
- */
-var UserAutoComplete = Base.extend({
-    /*
-     * TODO Cache results localy
-     * TODO Queue calls to User.get()
-     */
 
+/**
+ * User input field autocomplete widget
+ */
+$.widget("bb.userautocomplete", {
     /**
-     * Constructor
-     * @param element - Dom element or jQuery selector of the input field
+     * Initialize the widget
      */
-    constructor: function(element) {
-        this._element = $(element).first();
-        this._element.autocomplete({
+    _create: function()
+    {
+        // Initialize autocomplete on the element
+        this.element.autocomplete({
             minLength: 3,
             delay: 500,
-            source: $.proxy(this, "_complete"),
+            source: $.proxy(this, "_source"),
             focus: $.proxy(this, "_onItemFocus"),
             select: $.proxy(this, "_onItemSelect"),
         })
@@ -216,28 +212,59 @@ var UserAutoComplete = Base.extend({
                 .append("<a>" + item.real_name + "</a>")
                 .appendTo(ul);
         };
+        // Add spinner
+        this.spinner = $("<div/>").addClass("bb-spinner")
+            .css("position", "absolute")
+            .hide();
+        this.element.after(this.spinner)
 
         this._respCallback = null;
     },
 
     /**
-     * jQuery UI autocomplet item focus handler
+     * Destroy the widget
      */
-    _onItemFocus: function(event, ui) {
-        this._element.val(ui.item.name);
-        return false;
-    },
-    _onItemSelect: function(event, ui) {
-        this._element.val(ui.item.name);
-        return false;        
+    destroy: function()
+    {
+        this.element.autocomplete("destroy");
+        $.Widge.prototype.destroy.apply(this);
     },
 
-    _complete: function(request, responce) {
+    /**
+     * jQuery UI autocomplete item focus handler
+     */
+    _onItemFocus: function(event, ui) {
+        this.element.val(ui.item.name);
+        return false;
+    },
+
+    /**
+     * jQuery UI autocomplete item select handler
+     */
+    _onItemSelect: function(event, ui) {
+        this.element.val(ui.item.name);
+        return false;
+    },
+
+    /**
+     * jQuery UI autocomplete data source function
+     */
+    _source: function(request, responce) {
         this._respCallback = responce;
         var terms = this._splitTerms(request.term.toLowerCase());
-        var rpc = new Rpc("User", "get", {match: terms});
+
+        var rpc = new Rpc("User", "get", {match:terms});
         rpc.done($.proxy(this, "_userGetDone"));
+        rpc.complete($.proxy(this.spinner, "hide"));
+
+        this.spinner.css("top", this.element.position().top)
+            .css("left", this.element.position().left + this.element.width())
+            .show();
     },
+
+    /**
+     * Helper to split user input into separate terms
+     */
     _splitTerms: function(term) {
         var result = [];
         var tmp = term.split(' ');
@@ -246,7 +273,14 @@ var UserAutoComplete = Base.extend({
         }
         return result;
     },
+
+    /**
+     * Handler for User.get() rpc
+     */
     _userGetDone: function(result) {
-        this._respCallback(result.users)
+        if (this._respCallback) {
+            this._respCallback(result.users);
+        }
+        this._respCallback = null;
     },
 });
