@@ -102,7 +102,7 @@ index 282ea51..15fd33c 100644
  
  [% PROCESS bug/time.html.tmpl %]
  
-+[% Hook.process("before_editable_fields") %]
++[% Hook.process("before_table") %]
 +
  [%############################################################################%]
  [%# Table Header                                                             #%]

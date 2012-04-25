@@ -98,14 +98,6 @@ diff --git a/template/en/default/list/table.html.tmpl b/template/en/default/list
 index 88fae24..7bdf0e1 100644
 --- a/template/en/default/list/table.html.tmpl
 +++ b/template/en/default/list/table.html.tmpl
-@@ -73,6 +73,7 @@
- [% PROCESS bug/time.html.tmpl %]
- 
- [% Hook.process("before_table") %]
-+[% Hook.process("before_editable_fields") %]
- 
- [%############################################################################%]
- [%# Table Header                                                             #%]
 @@ -193,6 +194,8 @@
      [% FOREACH column = displaycolumns %]
      <td [% 'style="white-space: nowrap"' IF NOT abbrev.$column.wrap %]
