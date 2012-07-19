@@ -285,3 +285,180 @@ $.widget("bb.userautocomplete", {
         this._respCallback = null;
     },
 });
+
+
+var BB_BUG_FIELDS = null;
+
+/**
+ * Bug entry widget
+ */
+$.widget("bb.bugentry", {
+    _default_field_desc: {
+        required: false,
+        value: 'string',
+        type: 'single',
+    },
+    /**
+     * Field descriptions used to generate the form
+     */
+    _fields: {
+        product:     {required: true, value: 'select'},
+        component:   {required: true, value: 'select'},
+        version:     {required: true, value: 'select'},
+        summary:     {required: true},
+        description: {},
+        op_sys:      {value: 'select'},
+        platform:    {value: 'select'},
+        priority:    {value: 'select'},
+        severity:    {value: 'select'},
+        alias:       {},
+        assigned_to: {value: 'user' },
+        cc:          {type: 'list', value: 'user'},
+        // TODO handle description private flag
+        //comment_is_private {value: 'boolean' },
+        qa_contact:  {value: 'user' },
+        status:      {value: 'select'},
+        estimated_time: {value: 'number'},
+        blocked:     {value: 'number', type: 'list'},
+        dependson:   {value: 'number', type: 'list'},
+    },
+    /**
+     * Helper to get the complete field descriptor
+     */
+    _field: function(name) {
+        var desc = this._fields[name];
+        if (desc == null) throw "Unknown field " + name;
+        if (!desc.extended) {
+            desc = $.extend(
+                    {
+                        name: name,
+                        extended: true
+                    },
+                    this._default_field_desc,
+                    this._fields[name]);
+            this._fields[name] = desc;
+        }
+        return desc;
+    },
+
+    /**
+     * Map for field names which do not match between Bug.create() params and
+     * Bug.fields() return value
+     */
+    _field_map: {
+        rep_platform: 'platform',
+        bug_severity: 'severity',
+        bug_status: 'status',
+        longdesc: 'description',
+        short_desc: 'summary',
+    },
+
+    /**
+     * Default options
+     */
+    options: {
+        fields: ['summary', 'product', 'component', 'severity', 'priority', 'description'],
+    },
+
+    /**
+     * Initialize the widget
+     */
+    _create: function()
+    {
+        // Set click handler
+        this.element.on("click", $.proxy(this, "_openDialog"));
+        this._dialog = null;
+    },
+
+    /**
+     * Destroy the widget
+     */
+    destroy: function()
+    {
+        this.element.off("click", $.proxy(this, "_openDialog"));
+        if (this._dialog != null) {
+            this._dialog.dialog("destroy");
+        }
+    },
+
+    /**
+     * Opens the bug entry dialog when element is clicked.
+     * Fetches the required bug field information if it's not fetched yet.
+     */
+    _openDialog: function() {
+        if (BB_BUG_FIELDS == null) {
+            BB_BUG_FIELDS = new Rpc("Bug", "fields");
+            BB_BUG_FIELDS.done($.proxy(this, "_processBugFields"));
+            return;
+        }
+        if (this._dialog == null) {
+            this._createDialog();
+        } else {
+            this._resetDialog();
+        }
+        this._dialog.dialog("open");
+    },
+
+    /**
+     * Stores the bug field information in global BB_BUG_FIELDS
+     */
+    _processBugFields: function(result) {
+        BB_BUG_FIELDS = {};
+        for (var i = 0; i < result.fields.length; i++) {
+            var field = result.fields[i];
+            var name = this._field_map[field.name] || field.name;
+            BB_BUG_FIELDS[name] = field;
+        }
+        this._openDialog()
+    },
+
+    /**
+     * Creates the bug entry dialog
+     */
+    _createDialog: function() {
+        var form = $('<form><table></table></form>');
+
+        for (var i = 0; i < this.options.fields.length; i++) {
+            var field = this._field(this.options.fields[i]);
+            var row = $('<tr></tr>');
+            row.append(
+                $('<th></th>').append(
+                    $('<label></label>')
+                        .attr("for", field)
+                        .text(BB_BUG_FIELDS[field.name].display_name)
+                )
+            ).append(
+                $('<td></td>').append(
+                    this._createInput(field)
+                )
+            );
+            form.find("table").append(row);
+        }
+        form.dialog({
+            autoOpen: false,
+            modal: true,
+        });
+        this._dialog = form;
+    },
+
+    /**
+     * Creates input element for given field
+     */
+    _createInput: function(field) {
+        var element;
+        if (field.value == 'select') {
+            var element = $("<select></select>");
+        } else {
+            var element = $("<input></input>");
+        }
+        element.attr("name", field.name);
+        return element;
+    },
+
+    /**
+     * Sets the initial values in bug entry dialog
+     */
+    _resetDialog: function() {
+
+    },
+});
