@@ -287,77 +287,152 @@ $.widget("bb.userautocomplete", {
 });
 
 
-var BB_BUG_FIELDS = null;
-
-/**
- * Bug entry widget
- */
-$.widget("bb.bugentry", {
-    _default_field_desc: {
-        required: false,
-        value: 'string',
-        type: 'single',
-    },
-    /**
-     * Field descriptions used to generate the form
-     */
-    _fields: {
-        product:     {required: true, value: 'select'},
-        component:   {required: true, value: 'select'},
-        version:     {required: true, value: 'select'},
-        summary:     {required: true},
-        description: {},
-        op_sys:      {value: 'select'},
-        platform:    {value: 'select'},
-        priority:    {value: 'select'},
-        severity:    {value: 'select'},
-        alias:       {},
-        assigned_to: {value: 'user' },
-        cc:          {type: 'list', value: 'user'},
-        // TODO handle description private flag
-        //comment_is_private {value: 'boolean' },
-        qa_contact:  {value: 'user' },
-        status:      {value: 'select'},
-        estimated_time: {value: 'number'},
-        blocked:     {value: 'number', type: 'list'},
-        dependson:   {value: 'number', type: 'list'},
-    },
-    /**
-     * Helper to get the complete field descriptor
-     */
-    _field: function(name) {
-        var desc = this._fields[name];
-        if (desc == null) throw "Unknown field " + name;
-        if (!desc.extended) {
-            desc = $.extend(
-                    {
-                        name: name,
-                        extended: true
-                    },
-                    this._default_field_desc,
-                    this._fields[name]);
-            this._fields[name] = desc;
-        }
-        return desc;
-    },
-
+BB_BUG_FIELDS = {
     /**
      * Map for field names which do not match between Bug.create() params and
      * Bug.fields() return value
      */
-    _field_map: {
+    _rpc_map: {
         rep_platform: 'platform',
         bug_severity: 'severity',
         bug_status: 'status',
         longdesc: 'description',
         short_desc: 'summary',
     },
+    _default_field_desc: {
+        required: false,
+        type: 'string',
+        is_list: false,
+    },
+    /**
+     * Field descriptors for RPC interface
+     */
+    _fields: {
+        product:        {required: true, type: 'select'},
+        component:      {required: true, type: 'select'},
+        version:        {required: true, type: 'select'},
+        summary:        {required: true},
+        description:    {type: 'text'},
+        op_sys:         {type: 'select'},
+        platform:       {type: 'select'},
+        priority:       {type: 'select'},
+        severity:       {type: 'select'},
+        alias:          {},
+        assigned_to:    {type: 'user' },
+        cc:             {type: 'user', is_list: true},
+        qa_contact:     {type: 'user' },
+        status:         {type: 'select'},
+        estimated_time: {type: 'number'},
+        blocked:        {type: 'number', is_list: true},
+        dependson:      {type: 'number', is_list: true},
+    },
 
+    _types: ['string','string','select','multiselect','text','datetime','bugid'],
+
+    /**
+     * Get descriptors for fields supported in Bug RPC calls.
+     * If field is not dupported returns undef
+     */
+    get: function(name) {
+        if (!BB_BUG_FIELDS._fetched) throw "BB_BUG_FIELDS not initialized";
+        var desc = BB_BUG_FIELDS._fields[name];
+        return desc;
+    },
+    /**
+     * Fetch the field information via rpc call
+     */
+    init: function(callback) {
+        // TODO: allow params for callback
+        if (BB_BUG_FIELDS._fetched) return false;
+        BB_BUG_FIELDS._callback = callback;
+        BB_BUG_FIELDS._rpc = new Rpc("Bug", "fields");
+        BB_BUG_FIELDS._rpc.done(BB_BUG_FIELDS._processFields);
+        BB_BUG_FIELDS._rpc.fail(function(error) {
+            BB_BUG_FIELDS._rpc = null;
+            alert("Failed to get bug fields: " + error.msg);
+        });
+        return true;
+    },
+    /**
+     * Handle Bug.fields() RPC result
+     * Stores the raw field data in BB_BUG_FIELDS and processed field
+     * descriptors matching RPC params in BB_BUG_FIELDS._fields
+     */
+    _processFields: function(result) {
+        for (var i = 0; i < result.fields.length; i++) {
+            var field = result.fields[i];
+            BB_BUG_FIELDS[field.name] = field;
+            var name = BB_BUG_FIELDS._rpc_map[field.name] || field.name;
+            if (field.is_custom && field.is_on_bug_entry) {
+                var desc = {
+                    required: field.is_mandatory,
+                    type: BB_BUG_FIELDS._types[field.type] || 'string',
+                };
+            } else {
+                var desc = BB_BUG_FIELDS._fields[name];
+                if (desc == null) continue;
+            }
+            BB_BUG_FIELDS._fields[name] = $.extend(
+                    {
+                        name: name,
+                        display_name: field.display_name,
+                        values: field.values,
+                        value_field: BB_BUG_FIELDS._rpc_map[field.value_field]
+                                || field.value_field,
+                    },
+                    BB_BUG_FIELDS._default_field_desc,
+                    desc
+                );
+        }
+        // Available values for product field have to be fetched separately
+        BB_BUG_FIELDS._rpc = new Rpc("Product", "get_enterable_products");
+        BB_BUG_FIELDS._rpc.done(BB_BUG_FIELDS._getProducts);
+        BB_BUG_FIELDS._rpc.fail(function(error) {
+            BB_BUG_FIELDS._rpc = null;
+            alert("Failed to get products: " + error.msg);
+        });
+    },
+    /**
+     * Fetch product info for enterable products
+     */
+    _getProducts: function(result) {
+        BB_BUG_FIELDS._rpc = new Rpc("Product", "get", {ids: result.ids});
+        BB_BUG_FIELDS._rpc.done(BB_BUG_FIELDS._processProducts);
+        BB_BUG_FIELDS._rpc.fail(function(error) {
+            BB_BUG_FIELDS._rpc = null;
+            alert("Failed to get products: " + error.msg);
+        });
+    },
+    /**
+     * Handle Product.get() RPC result
+     */
+    _processProducts: function(result) {
+        var values = [];
+        for (var i=0; i < result.products.length; i++) {
+            var product = result.products[i];
+            values.push({name: product.name, sort_key: 0, visibility_values: []});
+        }
+        BB_BUG_FIELDS.product.values = values;
+        BB_BUG_FIELDS._fields.product.values = values;
+
+        BB_BUG_FIELDS._fetched = true;
+        if (BB_BUG_FIELDS._callback) {
+            BB_BUG_FIELDS._callback();
+        }
+    },
+};
+
+
+/**
+ * Bug entry widget
+ */
+$.widget("bb.bugentry", {
     /**
      * Default options
      */
     options: {
-        fields: ['summary', 'product', 'component', 'severity', 'priority', 'description'],
+        fields: ['summary', 'product', 'component', 'version', 'severity', 'priority', 'description'],
+        title: 'Create bug',
     },
 
     /**
@@ -367,7 +442,7 @@ $.widget("bb.bugentry", {
     {
         // Set click handler
         this.element.on("click", $.proxy(this, "_openDialog"));
-        this._dialog = null;
+        this._form = null;
     },
 
     /**
@@ -376,8 +451,8 @@ $.widget("bb.bugentry", {
     destroy: function()
     {
         this.element.off("click", $.proxy(this, "_openDialog"));
-        if (this._dialog != null) {
-            this._dialog.dialog("destroy");
+        if (this._form != null) {
+            this._form.dialog("destroy");
         }
     },
 
@@ -386,59 +461,76 @@ $.widget("bb.bugentry", {
      * Fetches the required bug field information if it's not fetched yet.
      */
     _openDialog: function() {
-        if (BB_BUG_FIELDS == null) {
-            BB_BUG_FIELDS = new Rpc("Bug", "fields");
-            BB_BUG_FIELDS.done($.proxy(this, "_processBugFields"));
+        if (BB_BUG_FIELDS.init($.proxy(this, "_openDialog"))) {
             return;
         }
-        if (this._dialog == null) {
+        if (this._form == null) {
             this._createDialog();
         } else {
             this._resetDialog();
         }
-        this._dialog.dialog("open");
-    },
-
-    /**
-     * Stores the bug field information in global BB_BUG_FIELDS
-     */
-    _processBugFields: function(result) {
-        BB_BUG_FIELDS = {};
-        for (var i = 0; i < result.fields.length; i++) {
-            var field = result.fields[i];
-            var name = this._field_map[field.name] || field.name;
-            BB_BUG_FIELDS[name] = field;
-        }
-        this._openDialog()
+        this._form.dialog("open");
     },
 
     /**
      * Creates the bug entry dialog
      */
     _createDialog: function() {
-        var form = $('<form><table></table></form>');
+        this._createForm();
+        this._form.dialog({
+            width: 800,
+            title: this.options.title,
+            position: ['center', 'top'],
+            autoOpen: false,
+            modal: true,
+            buttons: {
+                "Save": $.proxy(this, '_saveBug'),
+                "Cancel": function() {$(this).dialog("close");},
+            }
+        });
+    },
 
+    /**
+     * Creates the bug entry form
+     */
+    _createForm: function() {
+        if (this._form) {
+            this._form.remove();
+        }
+        this._form = $('<form></form>');
+        var table = $('<table></table>');
+        this._form.append(table);
+        this._depends = {};
+
+        // Create fields
         for (var i = 0; i < this.options.fields.length; i++) {
-            var field = this._field(this.options.fields[i]);
+            var fdesc = BB_BUG_FIELDS.get(this.options.fields[i]);
             var row = $('<tr></tr>');
             row.append(
                 $('<th></th>').append(
                     $('<label></label>')
-                        .attr("for", field)
-                        .text(BB_BUG_FIELDS[field.name].display_name)
-                )
-            ).append(
-                $('<td></td>').append(
-                    this._createInput(field)
+                        .attr("for", fdesc.name)
+                        .text(fdesc.display_name)
                 )
             );
-            form.find("table").append(row);
+            var input = this._createInput(fdesc);
+            row.append($('<td></td>').append(input));
+            table.append(row);
+            if (fdesc.value_field) {
+                if (!this._depends[fdesc.value_field])
+                    this._depends[fdesc.value_field] = [];
+                this._depends[fdesc.value_field].push(fdesc.name);
+            } else if (input[0].tagName == 'SELECT') {
+                this._setSelectOptions(input);
+            }
         }
-        form.dialog({
-            autoOpen: false,
-            modal: true,
-        });
-        this._dialog = form;
+
+        // Link value fields change to update and populate depending fields
+        for (var vfname in this._depends) {
+            this._form.find('select[name="'+vfname+'"]')
+                .change($.proxy(this, "_updateSelects"));
+        }
+        this._updateSelects();
     },
 
     /**
@@ -446,19 +538,87 @@ $.widget("bb.bugentry", {
      */
     _createInput: function(field) {
         var element;
-        if (field.value == 'select') {
+        if (field.type == 'select' || field.type == 'multiselect') {
             var element = $("<select></select>");
+        } else if (field.type == 'text') {
+            var element = $("<textarea></textarea>")
+                .attr('rows', 10).attr('cols', 80);
         } else {
             var element = $("<input></input>");
         }
-        element.attr("name", field.name);
+        element.attr("name", field.name)
+            .data("updateFields", []);
+
+        if (field.type == 'user') {
+            element.userautocomplete();
+        }
+        if (field.type == 'multiselect') {
+            element.attr('multiple', 'multiple');
+        }
         return element;
+    },
+
+    /**
+     * Populate select box with options, optionally filtering by given display value
+     */
+    _setSelectOptions: function(element, display_value)
+    {
+        if (element[0].tagName != 'SELECT') throw '<select> element expected';
+        element.empty();
+        var fname = element.attr('name');
+        var values = BB_BUG_FIELDS.get(fname).values || [];
+        for (var i=0; i < values.length; i++) {
+            var vdef = values[i];
+            if (display_value &&
+                    vdef.visibility_values.indexOf(display_value) == -1)
+                continue;
+            var option = $('<option>' + vdef.name + '</option>')
+                .attr('value', vdef.name);
+            if (vdef.name == BB_CONFIG.default[fname])
+                option.attr('selected', 'selected');
+            element.append(option);
+        }
+    },
+
+    /**
+     * Update selec box options when parent changes.
+     * Or all child selection if not called on change event.
+     */
+    _updateSelects: function(ev) {
+        var changed = [];
+        if (ev == undefined) {
+            for (var fname in this._depends) {
+                changed.push(fname);
+            }
+        } else {
+            changed.push($(ev.target).attr('name'));
+        }
+        for (var i=0; i < changed.length; i++) {
+            var updateFields = this._depends[changed[i]] || [];
+            var newValue = this._form.find('[name=' + changed[i] +']').val();
+            for (var i=0; i < updateFields.length; i++) {
+                var field = this._form.find('[name=' + updateFields[i] + ']');
+                this._setSelectOptions(field, newValue);
+            }
+        }
     },
 
     /**
      * Sets the initial values in bug entry dialog
      */
     _resetDialog: function() {
+        this._updateSelects();
+        this._form.find("input,textarea").each(function() {
+            var element = $(this);
+            var value = BB_CONFIG.default[element.attr('name')] || "";
+            element.val(value);
+        });
+    },
 
+    /**
+     * Bug entry dialog save button handler
+     */
+    _saveBug: function() {
+        this._form.dialog('close');
     },
 });

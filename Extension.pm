@@ -70,6 +70,12 @@ sub make_bb_config {
             logged_in => JSON::false
         };
     }
+    $config->{default} = {
+        priority => Bugzilla->params->{'defaultpriority'},
+        severity => Bugzilla->params->{'defaultseverity'},
+        platform => Bugzilla->params->{'defaultplatform'},
+        op_sys => Bugzilla->params->{'defaultopsys'},
+    };
 
     $vars->{bb_config} = JSON->new->utf8->encode($config);
 }
