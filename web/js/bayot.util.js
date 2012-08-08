@@ -330,13 +330,25 @@ BB_BUG_FIELDS = {
     _types: ['string','string','select','multiselect','text','datetime','bugid'],
 
     /**
-     * Get descriptors for fields supported in Bug RPC calls.
+     * Get descriptors for field supported in Bug RPC calls.
      * If field is not dupported returns undef
      */
     get: function(name) {
         if (!BB_BUG_FIELDS._fetched) throw "BB_BUG_FIELDS not initialized";
         var desc = BB_BUG_FIELDS._fields[name];
         return desc;
+    },
+    /**
+     * Get field descriptors for fields required in Bug.create() RPC.
+     */
+    get_required: function() {
+        var required = [];
+        for (var name in BB_BUG_FIELDS._fields) {
+            if (BB_BUG_FIELDS._fields[name].required) {
+                required.push(BB_BUG_FIELDS._fields[name]);
+            }
+        }
+        return required;
     },
     /**
      * Fetch the field information via rpc call
@@ -349,7 +361,7 @@ BB_BUG_FIELDS = {
         BB_BUG_FIELDS._rpc.done(BB_BUG_FIELDS._processFields);
         BB_BUG_FIELDS._rpc.fail(function(error) {
             BB_BUG_FIELDS._rpc = null;
-            alert("Failed to get bug fields: " + error.msg);
+            alert("Failed to get bug fields: " + error.message);
         });
         return true;
     },
@@ -389,7 +401,7 @@ BB_BUG_FIELDS = {
         BB_BUG_FIELDS._rpc.done(BB_BUG_FIELDS._getProducts);
         BB_BUG_FIELDS._rpc.fail(function(error) {
             BB_BUG_FIELDS._rpc = null;
-            alert("Failed to get products: " + error.msg);
+            alert("Failed to get products: " + error.message);
         });
     },
     /**
@@ -400,7 +412,7 @@ BB_BUG_FIELDS = {
         BB_BUG_FIELDS._rpc.done(BB_BUG_FIELDS._processProducts);
         BB_BUG_FIELDS._rpc.fail(function(error) {
             BB_BUG_FIELDS._rpc = null;
-            alert("Failed to get products: " + error.msg);
+            alert("Failed to get products: " + error.message);
         });
     },
     /**
@@ -431,7 +443,7 @@ $.widget("bb.bugentry", {
      * Default options
      */
     options: {
-        fields: ['summary', 'product', 'component', 'version', 'severity', 'priority', 'description'],
+        fields: ['summary', 'product', 'component', 'severity', 'priority', 'description'],
         title: 'Create bug',
     },
 
@@ -524,6 +536,21 @@ $.widget("bb.bugentry", {
                 this._setSelectOptions(input);
             }
         }
+        // Add required but not shown fields
+        var required = BB_BUG_FIELDS.get_required();
+        for (var i=0; i < required.length; i++) {
+            var fdesc = required[i];
+            if(this.options.fields.indexOf(fdesc.name) != -1) continue;
+            var input = this._createInput(fdesc, true);
+            if (fdesc.value_field) {
+                if (!this._depends[fdesc.value_field])
+                    this._depends[fdesc.value_field] = [];
+                this._depends[fdesc.value_field].push(fdesc.name);
+            } else {
+                input.val(BB_CONFIG.default[fdesc.name] || "unspecified");
+            }
+            this._form.append(input);
+        }
 
         // Link value fields change to update and populate depending fields
         for (var vfname in this._depends) {
@@ -536,9 +563,11 @@ $.widget("bb.bugentry", {
     /**
      * Creates input element for given field
      */
-    _createInput: function(field) {
+    _createInput: function(field, hidden) {
         var element;
-        if (field.type == 'select' || field.type == 'multiselect') {
+        if(hidden) {
+            var element = $('<input type="hidden"></input>');
+        } else if (field.type == 'select' || field.type == 'multiselect') {
             var element = $("<select></select>");
         } else if (field.type == 'text') {
             var element = $("<textarea></textarea>")
@@ -563,15 +592,19 @@ $.widget("bb.bugentry", {
      */
     _setSelectOptions: function(element, display_value)
     {
-        if (element[0].tagName != 'SELECT') throw '<select> element expected';
         element.empty();
         var fname = element.attr('name');
+        var hidden = element.attr('type') == 'hidden';
         var values = BB_BUG_FIELDS.get(fname).values || [];
         for (var i=0; i < values.length; i++) {
             var vdef = values[i];
             if (display_value &&
                     vdef.visibility_values.indexOf(display_value) == -1)
                 continue;
+            if(hidden) {
+                element.val(vdef.name);
+                break;
+            }
             var option = $('<option>' + vdef.name + '</option>')
                 .attr('value', vdef.name);
             if (vdef.name == BB_CONFIG.default[fname])
@@ -619,6 +652,25 @@ $.widget("bb.bugentry", {
      * Bug entry dialog save button handler
      */
     _saveBug: function() {
-        this._form.dialog('close');
+        var params = {};
+        fields = this._form.serializeArray();
+        for (var i=0; i < fields.length; i++) {
+            var field = fields[i];
+            params[field.name] = field.value;
+        }
+        var rpc = new Rpc("Bug", "create", params);
+        rpc.complete($.proxy(this, "_createComplete"));
+    },
+    /**
+     * Bug.create() response handler, triggers success or fail event on the widget
+     */
+    _createComplete: function(rpc) {
+        if (rpc.error) {
+            this._trigger("fail", null, { error: rpc.error });
+            alert("Failed to create bug: " + rpc.error.message);
+        } else {
+            this._form.dialog("close");
+            this._trigger("success", null, { bug_id: rpc.response.id });
+        }
     },
 });
