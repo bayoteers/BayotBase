@@ -445,6 +445,7 @@ $.widget("bb.bugentry", {
     options: {
         fields: ['summary', 'product', 'component', 'severity', 'priority', 'description'],
         title: 'Create bug',
+        defaults: {},
     },
 
     /**
@@ -577,6 +578,7 @@ $.widget("bb.bugentry", {
         }
         element.attr("name", field.name)
             .data("updateFields", []);
+        element.val(this.options.defaults[field.name] || BB_CONFIG.default[field.name]);
 
         if (field.type == 'user') {
             element.userautocomplete();
@@ -607,7 +609,8 @@ $.widget("bb.bugentry", {
             }
             var option = $('<option>' + vdef.name + '</option>')
                 .attr('value', vdef.name);
-            if (vdef.name == BB_CONFIG.default[fname])
+            var selected = this.options.defaults[fname] || BB_CONFIG.default[fname];
+            if (vdef.name == selected)
                 option.attr('selected', 'selected');
             element.append(option);
         }
