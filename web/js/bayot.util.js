@@ -287,7 +287,7 @@ $.widget("bb.userautocomplete", {
 });
 
 
-BB_BUG_FIELDS = {
+BB_FIELDS = {
     /**
      * Map for field names which do not match between Bug.create() params and
      * Bug.fields() return value
@@ -328,109 +328,67 @@ BB_BUG_FIELDS = {
     },
 
     _types: ['string','string','select','multiselect','text','datetime','bugid'],
+    _fetch: $.Deferred(),
+    _rpc: null,
 
-    /**
-     * Get descriptors for field supported in Bug RPC calls.
-     * If field is not dupported returns undef
-     */
-    get: function(name) {
-        if (!BB_BUG_FIELDS._fetched) throw "BB_BUG_FIELDS not initialized";
-        var desc = BB_BUG_FIELDS._fields[name];
-        return desc;
-    },
     /**
      * Get field descriptors for fields required in Bug.create() RPC.
      */
     get_required: function() {
         var required = [];
-        for (var name in BB_BUG_FIELDS._fields) {
-            if (BB_BUG_FIELDS._fields[name].required) {
-                required.push(BB_BUG_FIELDS._fields[name]);
+        for (var name in BB_FIELDS._fields) {
+            if (BB_FIELDS._fields[name].required) {
+                required.push(BB_FIELDS[name]);
             }
         }
         return required;
     },
-    /**
-     * Fetch the field information via rpc call
-     */
-    init: function(callback) {
-        // TODO: allow params for callback
-        if (BB_BUG_FIELDS._fetched) return false;
-        BB_BUG_FIELDS._callback = callback;
-        BB_BUG_FIELDS._rpc = new Rpc("Bug", "fields");
-        BB_BUG_FIELDS._rpc.done(BB_BUG_FIELDS._processFields);
-        BB_BUG_FIELDS._rpc.fail(function(error) {
-            BB_BUG_FIELDS._rpc = null;
-            alert("Failed to get bug fields: " + error.message);
-        });
-        return true;
+
+    init: function() {
+        if (BB_FIELDS._rpc == null) {
+            BB_FIELDS._rpc = new Rpc("BayotBase", "fields");
+            BB_FIELDS._rpc.done(BB_FIELDS._processFields);
+            BB_FIELDS._rpc.fail(function(error) {
+                BB_FIELDS._rpc = null;
+                BB_FIELDS._fetch = $.Deferred();
+                alert("Failed to get bug fields: " + error.message);
+            });
+        }
+        return BB_FIELDS._fetch.promise();
     },
+    wrap: function(fn, fnThis)
+    {
+        return function() {
+            var args = [].slice.apply(arguments);
+            BB_FIELDS.init().done(function() {
+                fn.apply(fnThis, args);
+            });
+        };
+    },
+
     /**
-     * Handle Bug.fields() RPC result
-     * Stores the raw field data in BB_BUG_FIELDS and processed field
-     * descriptors matching RPC params in BB_BUG_FIELDS._fields
+     * Handle BayotBase.fields() RPC result
+     * Stores the field data in
      */
     _processFields: function(result) {
         for (var i = 0; i < result.fields.length; i++) {
             var field = result.fields[i];
-            BB_BUG_FIELDS[field.name] = field;
-            var name = BB_BUG_FIELDS._rpc_map[field.name] || field.name;
             if (field.is_custom && field.is_on_bug_entry) {
                 var desc = {
                     required: field.is_mandatory,
-                    type: BB_BUG_FIELDS._types[field.type] || 'string',
+                    type: BB_FIELDS._types[field.type] || 'string',
                 };
             } else {
-                var desc = BB_BUG_FIELDS._fields[name];
+                var desc = BB_FIELDS._fields[field.name];
                 if (desc == null) continue;
             }
-            BB_BUG_FIELDS._fields[name] = $.extend(
-                    {
-                        name: name,
-                        display_name: field.display_name,
-                        values: field.values,
-                        value_field: BB_BUG_FIELDS._rpc_map[field.value_field]
-                                || field.value_field,
-                    },
-                    BB_BUG_FIELDS._default_field_desc,
+            BB_FIELDS[field.name] = $.extend(
+                    field,
+                    BB_FIELDS._default_field_desc,
                     desc
                 );
         }
-        // Available values for product field have to be fetched separately
-        BB_BUG_FIELDS._rpc = new Rpc("Product", "get_enterable_products");
-        BB_BUG_FIELDS._rpc.done(BB_BUG_FIELDS._getProducts);
-        BB_BUG_FIELDS._rpc.fail(function(error) {
-            BB_BUG_FIELDS._rpc = null;
-            alert("Failed to get products: " + error.message);
-        });
-    },
-    /**
-     * Fetch product info for enterable products
-     */
-    _getProducts: function(result) {
-        BB_BUG_FIELDS._rpc = new Rpc("Product", "get", {ids: result.ids});
-        BB_BUG_FIELDS._rpc.done(BB_BUG_FIELDS._processProducts);
-        BB_BUG_FIELDS._rpc.fail(function(error) {
-            BB_BUG_FIELDS._rpc = null;
-            alert("Failed to get products: " + error.message);
-        });
-    },
-    /**
-     * Handle Product.get() RPC result
-     */
-    _processProducts: function(result) {
-        var values = [];
-        for (var i=0; i < result.products.length; i++) {
-            var product = result.products[i];
-            values.push({name: product.name, sort_key: 0, visibility_values: []});
-        }
-        BB_BUG_FIELDS.product.values = values;
-        BB_BUG_FIELDS._fields.product.values = values;
-
-        BB_BUG_FIELDS._fetched = true;
-        if (BB_BUG_FIELDS._callback) {
-            BB_BUG_FIELDS._callback();
-        }
+        BB_FIELDS._fetch.resolve();
     },
 };
 
@@ -453,6 +411,7 @@ $.widget("bb.bugentry", {
      */
     _create: function()
     {
+        this._openDialog = BB_FIELDS.wrap(this._openDialog, this);
         // Set click handler
         this.element.on("click", $.proxy(this, "_openDialog"));
         this._form = null;
@@ -474,33 +433,22 @@ $.widget("bb.bugentry", {
      * Fetches the required bug field information if it's not fetched yet.
      */
     _openDialog: function() {
-        if (BB_BUG_FIELDS.init($.proxy(this, "_openDialog"))) {
-            return;
-        }
         if (this._form == null) {
-            this._createDialog();
-        } else {
-            this._resetDialog();
+            this._createForm();
+            this._form.dialog({
+                width: 800,
+                title: this.options.title,
+                position: ['center', 'top'],
+                autoOpen: false,
+                modal: true,
+                buttons: {
+                    "Save": $.proxy(this, '_saveBug'),
+                    "Cancel": function (){$(this).dialog("close");},
+                },
+                close: $.proxy(this, '_resetDialog'),
+            });
         }
         this._form.dialog("open");
-    },
-
-    /**
-     * Creates the bug entry dialog
-     */
-    _createDialog: function() {
-        this._createForm();
-        this._form.dialog({
-            width: 800,
-            title: this.options.title,
-            position: ['center', 'top'],
-            autoOpen: false,
-            modal: true,
-            buttons: {
-                "Save": $.proxy(this, '_saveBug'),
-                "Cancel": function() {$(this).dialog("close");},
-            }
-        });
     },
 
     /**
@@ -517,7 +465,7 @@ $.widget("bb.bugentry", {
 
         // Create fields
         for (var i = 0; i < this.options.fields.length; i++) {
-            var fdesc = BB_BUG_FIELDS.get(this.options.fields[i]);
+            var fdesc = BB_FIELDS[this.options.fields[i]];
             var row = $('<tr></tr>');
             row.append(
                 $('<th></th>').append(
@@ -538,7 +486,7 @@ $.widget("bb.bugentry", {
             }
         }
         // Add required but not shown fields
-        var required = BB_BUG_FIELDS.get_required();
+        var required = BB_FIELDS.get_required();
         for (var i=0; i < required.length; i++) {
             var fdesc = required[i];
             if(this.options.fields.indexOf(fdesc.name) != -1) continue;
@@ -597,7 +545,7 @@ $.widget("bb.bugentry", {
         element.empty();
         var fname = element.attr('name');
         var hidden = element.attr('type') == 'hidden';
-        var values = BB_BUG_FIELDS.get(fname).values || [];
+        var values = BB_FIELDS[fname].values || [];
         for (var i=0; i < values.length; i++) {
             var vdef = values[i];
             if (display_value &&
@@ -643,6 +591,12 @@ $.widget("bb.bugentry", {
      * Sets the initial values in bug entry dialog
      */
     _resetDialog: function() {
+        if (this._form == null) return;
+        this._form.dialog("destroy");
+        this._form = null;
+        return;
+        // TODO Find out why hidden fields loose their value on reset
+        // so that we don't need to recreate the form every time
         this._updateSelects();
         this._form.find("input,textarea").each(function() {
             var element = $(this);
@@ -672,7 +626,7 @@ $.widget("bb.bugentry", {
             this._trigger("fail", null, { error: rpc.error });
             alert("Failed to create bug: " + rpc.error.message);
         } else {
-            this._form.dialog("close");
+            this._resetDialog();
             this._trigger("success", null, { bug_id: rpc.response.id });
         }
     },
