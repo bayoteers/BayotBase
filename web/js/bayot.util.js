@@ -196,7 +196,7 @@ var Bug = Base.extend({
 
     constructor: function(bug)
     {
-        this.update = Bug.initOnCall(this.update, this);
+        this._getDone = Bug.initOnCall(this._getDone, this);
         this.set = Bug.initOnCall(this.set, this);
         this.add = Bug.initOnCall(this.add, this);
         this.remove = Bug.initOnCall(this.remove, this);
@@ -209,10 +209,12 @@ var Bug = Base.extend({
             this._modified = bug;
             this._data = {};
         }
+        // Holders for deffed objects
+        this._fetching = null;
 
-        // Fires when bug has been saved successfully or updated from DB
-        this._doneCb = jQuery.Callbacks();
-        this.done = $.proxy(this._doneCb, "add");
+        // Fires when bug field has been updated in DB
+        this._updateCb = jQuery.Callbacks();
+        this.updated = $.proxy(this._updateCb, "add");
         // Fires when bug field is changed via set/add/remove
         // Callback params (bug_object, field_name, new_field_value)
         this._changedCb = jQuery.Callbacks();
@@ -242,6 +244,8 @@ var Bug = Base.extend({
         }
         rpc.done($.proxy(this, "_saveDone"));
         rpc.fail($.proxy(this, "_saveFail"));
+        this._saving = $.Deferred();
+        return this._saving.promise()
     },
 
     _getUpdateParams: function()
@@ -254,9 +258,9 @@ var Bug = Base.extend({
                 // TODO private comment support?
             } else if (fd.multivalue) {
                 var add = [];
-                var remove = this._data[name];
+                var remove = this._data[name].map(String);
                 this._modified[name].forEach(function(value) {
-                    var index = remove.indexOf(value);
+                    var index = remove.indexOf(String(value));
                     if(index == -1) {
                         add.push(value);
                     } else {
@@ -272,16 +276,19 @@ var Bug = Base.extend({
     },
     _saveDone: function(result)
     {
+        this._modified = {};
         if (result.id) {
             // Newly created bug, update
             this._data.id = result.id;
-            this.update()
+            this.update();
         } else {
             // Existing bug updated
             var changes = result.bugs[0].changes;
             for (var name in changes) {
+                var fd = Bug.fd(name);
                 var change = changes[name];
-                if ($.isArray(this._data[name])){
+                if (fd.multivalue) {
+                    if (!$.isArray(this._data[name])) this._data[name] = [];
                     var added = change.added.split(/\s*,\s*/);
                     var removed = change.removed.split(/\s*,\s*/);
                     for (var i=0; i < added.length; i++) {
@@ -291,45 +298,74 @@ var Bug = Base.extend({
                         var index = this._data[name].indexOf(removed[i]);
                         if (index != -1) this._data[name].pop(index);
                     }
+                } else if (name == 'work_time') {
+                    this._data['actual_time'] += Number(change.added);
                 } else if (change.added) {
                     this._data[name] = change.added;
                 } else if (change.removed) {
-                    this._data[name] = null;
+                    this._data[name] = "";
                 }
-                this._changedCb.fire(this, name, this._data[name]);
+
+                this._updateCb.fire(this, name, this._data[name]);
             }
-            this._modified = {};
-            this._doneCb.fire(this);
+            if (this._saving) {
+                this._saving.resolve(this);
+                this._saving = null;
+            }
         }
     },
     _saveFail: function(error)
     {
         alert("Saving bug failed: " + error.message);
+        if (this._saving) {
+            this._saving.reject(this);
+            this._saving = null;
+        }
     },
 
     /**
      * Update bug data from database
      */
     update: function() {
+        if (this._fetching) return this._fetching.promise();
         if (!this._data.id) throw "Can't update unsaved bug";
         var rpc = new Rpc("Bug", "get", {ids:[this._data.id]});
         rpc.done($.proxy(this, "_getDone"));
         rpc.fail($.proxy(this, "_getFail"));
+        this._fetching = $.Deferred();
+        return this._fetching.promise();
     },
 
-    _getDone:function(result) {
+    _getDone: function(result) {
         for (var name in result.bugs[0]) {
             this.set(name, result.bugs[0][name]);
         }
         for (var name in this._modified) {
             this._data[name] = this._modified[name];
             delete this._modified[name];
+            this._updateCb.fire(this, name, this._data[name]);
+
         }
-        this._doneCb.fire(this);
+        if (this._saving) {
+            this._saving.resolve(this);
+            this._saving = null;
+        }
+        if (this._fetching) {
+            this._fetching.resolve(this);
+            this._fetching = null;
+        }
     },
 
-    _getFail:function(error) {
+    _getFail: function(error) {
         alert("Loading bug failed: " + error.message);
+        if (this._saving) {
+            this._saving.reject(this);
+            this._saving = null;
+        }
+        if (this._fetching) {
+            this._fetching.reject(this);
+            this._fetching = null;
+        }
     },
 
     value: function(name)
@@ -339,22 +375,35 @@ var Bug = Base.extend({
     choices: function(name)
     {
         var fdesc = Bug.fd(name);
+        if (fdesc == undefined) return [];
+        var current = this._data[fdesc.name];
         var choices = [];
-        var visibleFor = fdesc.value_field ? this.value(fdesc.value_field) : null;
-        fdesc.values.forEach(function(value) {
-            if (visibleFor && value.visibility_values.indexOf(visibleFor) == -1)
-                return;
-            choices.push(value);
-        });
-        choices.sort(function(a,b) {
-            var result = a.sort_key - b.sork_key;
-            if(result == 0) {
-                if (a.name < b.name) result = -1;
-                if (a.name > b.name) result = 1;
-            }
-            return result;
-        });
-        return choices.map(function(value) {return value.name})
+        if (fdesc.name == 'status') {
+            fdesc.values.forEach(function(value) {
+                if (value.name == current && value.can_change_to) {
+                    choices = value.can_change_to.map(function(t) {return t.name});
+                    return true;
+                }
+            });
+            choices.unshift(current);
+        } else {
+            var visibleFor = fdesc.value_field ? this.value(fdesc.value_field) : null;
+            fdesc.values.forEach(function(value) {
+                if (visibleFor && value.visibility_values.indexOf(visibleFor) == -1)
+                    return;
+                choices.push(value);
+            });
+            choices.sort(function(a,b) {
+                var result = a.sort_key - b.sork_key;
+                if(result == 0) {
+                    if (a.name < b.name) result = -1;
+                    if (a.name > b.name) result = 1;
+                }
+                return result;
+            });
+            choices = choices.map(function(value) {return value.name});
+        }
+        return choices;
     },
 
     /**
@@ -374,15 +423,21 @@ var Bug = Base.extend({
         var fdesc = Bug.fd(name);
         if (fdesc.immutable)
             return;
-        if (fdesc.multivalue && !$.isArray(value))
-            value = [value];
-
-        if (this._data[name] != value){
+        var diff = false;
+        if (fdesc.multivalue) {
+            value = $.isArray(value) ? value : value.split(/\s*,\s*/);
+            if (this._data[name] == undefined) this._data[name] = [];
+            diff = value.sort().join() != this._data[name].sort().join;
+        } else {
+            diff = value != this._data[name];
+        }
+        if (diff){
             this._modified[name] = value;
             this._changedCb.fire(this, name, value);
             this._checkDependencies(fdesc, value);
         } else {
             delete this._modified[name];
+            this._checkDependencies(fdesc, value);
         }
     },
     add: function(name, value) {
@@ -423,8 +478,92 @@ var Bug = Base.extend({
             if(choices.indexOf(this.value(dname)) == -1) {
                 this.set(dname, choices[0]);
             }
-            this._choicesCb.fire(this, name, dname, choices);
+            this._choicesCb.fire(this, fdesc.name, dname, choices);
         }
+    },
+    /**
+     * Creates input element for given field
+     *
+     * @param field - field descriptor or name
+     * @param hidden - if true, create hidden type input
+     * @param connect - if true, connect change event to set bug field value
+     */
+    createInput: function(field, hidden, connect) {
+        if (!$.isPlainObject(field)) {
+            field = Bug.fd(field);
+            if (field == undefined) return;
+        }
+        if (hidden) {
+            var element = $('<input type="hidden"></input>');
+        } else if (field.type == Bug.FieldType.SELECT ||
+                field.type == Bug.FieldType.MULTI) {
+            var element = $("<select></select>");
+        } else if (field.type == Bug.FieldType.TEXT) {
+            var element = $("<textarea></textarea>")
+                .attr('rows', 10)
+                .attr('cols', 80);
+        } else {
+            var element = $("<input></input>");
+        }
+        element.attr("name", field.name);
+
+        if (element.is('select')) {
+            if (field.multivalue) {
+                element.attr('multiple', 'multiple');
+            }
+            this.setSelectOptions(element);
+        } else {
+            var value = this.value(field.name);
+            value = value != undefined ? value : this.choices(field.name)[0];
+            element.val(value);
+        }
+
+        if (field.type == Bug.FieldType.USER) {
+            element.userautocomplete();
+        }
+        if (connect) {
+            element.change($.proxy(this, "_inputChanged"));
+            if(field.value_field) {
+                var that = this;
+                this.choicesUpdated(function(bug, changed, field, choices) {
+                    if (element.attr('name') != field) return;
+                    if (element.attr('type') == 'hidden') {
+                        element.val(bug.value(field));
+                    } else if(element.is('select')) {
+                        that.setSelectOptions(element);
+                    }
+                });
+            }
+        }
+        return element;
+    },
+    /**
+     * Input change handler
+     */
+    _inputChanged: function(ev)
+    {
+        var target = $(ev.target);
+        var name = target.attr('name');
+        var value = target.val();
+        this.set(name, value);
+    },
+
+    /**
+     * Set options for select field
+     */
+    setSelectOptions: function(element)
+    {
+        if(!element.is('select')) return;
+        element.empty();
+        var name = element.attr('name');
+        var current = this.value(name);
+        this.choices(name).forEach(function(value) {
+            var option = $('<option>' + value + '</option>')
+                .attr('value', value);
+            if (value == current)
+                option.attr('selected', 'selected');
+            element.append(option);
+        });
     },
 
 }, {
@@ -475,8 +614,7 @@ var Bug = Base.extend({
     fd: function(name)
     {
         if (!Bug._fields == null) throw "Bug field data not fetched";
-        var fdesc = Bug._fields[name];
-        if (fdesc == undefined) throw "Unknown field '"+name+"'";
+        var fdesc = Bug._fields[name] || Bug._fields[Bug._internal[name]];
         return fdesc;
     },
 
@@ -526,6 +664,7 @@ var Bug = Base.extend({
     _processFields: function(result) {
         var fields = {};
         var depends = {};
+        var internal = {};
         for (var i = 0; i < result.fields.length; i++) {
             var fdesc = result.fields[i];
             fields[fdesc.name] = fdesc;
@@ -534,11 +673,15 @@ var Bug = Base.extend({
                     depends[fdesc.value_field] = [];
                 depends[fdesc.value_field].push(fdesc.name);
             }
+            if (fdesc.name != fdesc.internal_name) {
+                internal[fdesc.internal_name] = fdesc.name;
+            }
         }
         for (var name in depends) {
             fields[name].depends = depends[name];
         }
         Bug._fields = fields;
+        Bug._internal = internal;
         Bug._fetch.resolve();
     },
 });
@@ -684,7 +827,6 @@ $.widget("bb.bugentry", {
     _openDialog: function() {
         delete this._bug;
         this._bug = new Bug(this.options.defaults);
-        this._bug.done($.proxy(this, "_createDone"));
         if (this._form == null) {
             this._createForm();
             this._form.dialog({
@@ -723,7 +865,8 @@ $.widget("bb.bugentry", {
                         .text(fdesc.display_name)
                 )
             );
-            var input = this._createInput(fdesc);
+            var input = this._bug.createInput(fdesc, false, true);
+
             row.append($('<td></td>').append(input));
             table.append(row);
         }
@@ -732,81 +875,8 @@ $.widget("bb.bugentry", {
         for (var i=0; i < required.length; i++) {
             var fdesc = required[i];
             if(this.options.fields.indexOf(fdesc.name) != -1) continue;
-            var input = this._createInput(fdesc, true);
+            var input = this._bug.createInput(fdesc, true, true);
             this._form.append(input);
-        }
-        this._bug.choicesUpdated($.proxy(this, "_updateChoices"));
-    },
-
-    /**
-     * Creates input element for given field
-     */
-    _createInput: function(field, hidden) {
-        var element;
-        if(hidden) {
-            var element = $('<input type="hidden"></input>');
-        } else if (field.type == Bug.FieldType.SELECT ||
-                field.type == Bug.FieldType.MULTI) {
-            var element = $("<select></select>");
-            if (field.multivalue) {
-                element.attr('multiple', 'multiple');
-            }
-            this._setSelectOptions(element, field.name,
-                    this._bug.choices(field.name));
-            element.change($.proxy(this, "_selectChanged"));
-        } else if (field.type == Bug.FieldType.TEXT) {
-            var element = $("<textarea></textarea>")
-                .attr('rows', 10)
-                .attr('cols', 80);
-        } else {
-            var element = $("<input></input>");
-        }
-        if (field.type == Bug.FieldType.USER) {
-            element.userautocomplete();
-        }
-        var value = this._bug.value(field.name) || this._bug.choices(field.name)[0];
-        element.attr("name", field.name).val(value);
-        return element;
-    },
-
-    /**
-     * Populate select box with options
-     */
-    _setSelectOptions: function(element, name, choices)
-    {
-        element.empty();
-        var current = this._bug.value(name);
-        choices.forEach(function(value) {
-            var option = $('<option>' + value + '</option>')
-                .attr('value', value);
-            if (value == current)
-                option.attr('selected', 'selected');
-            element.append(option);
-        });
-    },
-
-    /**
-     * Select box change handler
-     */
-    _selectChanged: function(ev)
-    {
-        var target = $(ev.target);
-        var name = target.attr('name');
-        var value = target.val();
-        console.log("change", name, value);
-        this._bug.set(name, value);
-    },
-
-    /**
-     * Update values when field choices change
-     */
-    _updateChoices: function(bug, changed, field, choices) {
-        var element = this._form.find("[name=" + field + "]");
-        if (!element.size()) return;
-        if (element.attr('type') == 'hidden') {
-            element.val(bug.value(field));
-        } else {
-            this._setSelectOptions(element, field, choices);
         }
     },
 
@@ -831,7 +901,7 @@ $.widget("bb.bugentry", {
             params[field.name] = field.value;
         }
         this._bug.set(params);
-        this._bug.save();
+        this._bug.save().done($.proxy(this, "_createDone"));
     },
     /**
      * Bug.save() done-callback handler

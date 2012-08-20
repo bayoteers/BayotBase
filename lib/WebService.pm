@@ -181,6 +181,7 @@ use constant FIELD_OVERRIDES => {
         name => 'whiteboard',
         is_on_bug_entry => 1,
     },
+    work_time => {},
 };
 
 use constant EXTRA_FIELDS => (
@@ -195,6 +196,7 @@ use constant EXTRA_FIELDS => (
         type => 6,
         visibility_field => undef,
         visiblity_values => [],
+        values => [],
     },
     {
         id => 0,
@@ -208,6 +210,7 @@ use constant EXTRA_FIELDS => (
         type => 12,
         visibility_field => undef,
         visiblity_values => [],
+        values => [],
     },
     {
         id => 0,
@@ -221,6 +224,7 @@ use constant EXTRA_FIELDS => (
         type => 12,
         visibility_field => undef,
         visiblity_values => [],
+        values => [],
     },
     {
         id => 0,
@@ -234,6 +238,21 @@ use constant EXTRA_FIELDS => (
         type => 0,
         visibility_field => undef,
         visiblity_values => [],
+        values => [],
+    },
+    {
+        id => 0,
+        name => 'actual_time',
+        internal_name => undef,
+        display_name => 'Actual Hours',
+        is_custom => 0,
+        is_mandatory => 0,
+        is_on_bug_entry => 0,
+        immutable => 1,
+        type => 0,
+        visibility_field => undef,
+        visiblity_values => [],
+        values => [],
     },
 );
 
