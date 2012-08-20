@@ -349,7 +349,7 @@ sub fields {
 
     foreach my $field (@fields) {
         my ($key, $type);
-        while (($key, $type) = each(RPC_TYPES)) {
+        while (($key, $type) = each(%{RPC_TYPES()})) {
             $field->{$key} = $self->type($type, $field->{$key});
         }
     }
