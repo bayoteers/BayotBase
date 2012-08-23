@@ -118,14 +118,27 @@ var Rpc = Base.extend({
      */
     _onError: function(response)
     {
-        this.error = response.error;
+        if ($.isPlainObject(response.error)){
+            this.error = response.error;
+        } else {
+            /*
+             * jquery.jsonrpc response in case of network or other unknown
+             * errors is { error: "Internal Server Error", version "2.0" }
+             * Not sure if that is correct, or what would be the correct way to
+             * handle that, so fixing it here
+             */
+            this.error = {
+                message: "Network error or other unexpected problem",
+                code: -32603,
+            };
+        }
         if(typeof console !== 'undefined') {
             console.log('jsonRPC error: %o', this.error);
         }
         var that = this;
         absorb(function()
         {
-            that.failCb.fire(response.error);
+            that.failCb.fire(that.error);
             that.completeCb.fire(that);
         });
     }
