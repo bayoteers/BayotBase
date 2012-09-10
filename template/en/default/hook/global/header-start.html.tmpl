@@ -20,17 +20,17 @@
   #%]
 
 [%- IF Bugzilla.params.bb_use_debug_js -%]
-    <script src="extensions/BayotBase/web/js/jquery-1.7.1.js"></script>
-    <script src="extensions/BayotBase/web/js/es5-shim.js"></script>
+    <script src="[% 'extensions/BayotBase/web/js/jquery-1.7.1.js' FILTER mtime %]"></script>
+    <script src="[% 'extensions/BayotBase/web/js/es5-shim.js' FILTER mtime %]"></script>
 [%- ELSE -%]
-    <script src="extensions/BayotBase/web/js/jquery-1.7.1.min.js"></script>
-    <script src="extensions/BayotBase/web/js/es5-shim.min.js"></script>
+    <script src="[% 'extensions/BayotBase/web/js/jquery-1.7.1.min.js' FILTER mtime %]"></script>
+    <script src="[% 'extensions/BayotBase/web/js/es5-shim.min.js' FILTER mtime %]"></script>
 [%- END -%]
-<script src="extensions/BayotBase/web/js/jquery-ui-1.8.18.custom.min.js"></script>
-<script src="extensions/BayotBase/web/js/jquery.cookie.js"></script>
-<script src="extensions/BayotBase/web/js/jquery.jsonrpc.js"></script>
-<script src="extensions/BayotBase/web/js/Base.js"></script>
-<script src="extensions/BayotBase/web/js/bayot.util.js"></script>
-<link rel="stylesheet" href="extensions/BayotBase/web/css/jquery-ui-1.8.18.custom.css">
-<link rel="stylesheet" href="extensions/BayotBase/web/css/base.css">
+<script src="[% 'extensions/BayotBase/web/js/jquery-ui-1.8.18.custom.min.js' FILTER mtime %]"></script>
+<script src="[% 'extensions/BayotBase/web/js/jquery.cookie.js' FILTER mtime %]"></script>
+<script src="[% 'extensions/BayotBase/web/js/jquery.jsonrpc.js' FILTER mtime %]"></script>
+<script src="[% 'extensions/BayotBase/web/js/Base.js' FILTER mtime %]"></script>
+<script src="[% 'extensions/BayotBase/web/js/bayot.util.js' FILTER mtime %]"></script>
+<link rel="stylesheet" href="[% 'extensions/BayotBase/web/css/jquery-ui-1.8.18.custom.css' FILTER mtime %]">
+<link rel="stylesheet" href="[% 'extensions/BayotBase/web/css/base.css' FILTER mtime %]">
 <script>var BB_CONFIG = ([% bb_config %]);</script>
