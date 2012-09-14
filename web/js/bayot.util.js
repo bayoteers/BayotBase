@@ -216,10 +216,10 @@ var Bug = Base.extend({
 
         if (bug.id) {
             // TODO: Might need a better check of bug data completeness
-            this._data = bug;
+            this._data = $.extend(true, {}, bug);
             this._modified = {};
         } else {
-            this._modified = bug;
+            this._modified = $.extend(true, {}, bug);
             this._data = {};
         }
         // Holders for deffed objects
