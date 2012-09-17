@@ -312,6 +312,8 @@ var Bug = Base.extend({
                         if (index != -1) this._data[name].pop(index);
                     }
                 } else if (name == 'work_time') {
+                    // Special handling for work_time / actual_time
+                    name = 'actual_time';
                     this._data['actual_time'] += Number(change.added);
                 } else if (change.added) {
                     this._data[name] = change.added;
