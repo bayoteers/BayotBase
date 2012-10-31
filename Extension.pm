@@ -71,6 +71,8 @@ sub make_bb_config {
         };
     }
     $config->{default} = {
+        bugentry_fields => [split(/\s/,
+            Bugzilla->params->{'bb_bug_entry_fields'})],
         priority => Bugzilla->params->{'defaultpriority'},
         severity => Bugzilla->params->{'defaultseverity'},
         platform => Bugzilla->params->{'defaultplatform'},

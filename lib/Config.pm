@@ -34,6 +34,11 @@ sub get_param_list {
             type   => 't',
             default => '0'
         },
+        {
+            name   => 'bb_bug_entry_fields',
+            type   => 't',
+            default => 'summary product component severity priority comment',
+        },
     );
     return @params;
 }

@@ -216,9 +216,11 @@ var Bug = Base.extend({
 
         if (bug.id) {
             // TODO: Might need a better check of bug data completeness
+            this.id = bug.id;
             this._data = $.extend(true, {}, bug);
             this._modified = {};
         } else {
+            this.id = null;
             this._modified = $.extend(true, {}, bug);
             this._data = {};
         }
@@ -302,8 +304,12 @@ var Bug = Base.extend({
                 var change = changes[name];
                 if (fd.multivalue) {
                     if (!$.isArray(this._data[name])) this._data[name] = [];
-                    var added = change.added.split(/\s*,\s*/);
-                    var removed = change.removed.split(/\s*,\s*/);
+                    var added = change.added ? change.added.split(/\s*,\s*/) : [];
+                    var removed = change.removed ? change.removed.split(/\s*,\s*/) : [];
+                    if (fd.type == Bug.FieldType.BUGID) {
+                        added = added.map(Number);
+                        removed = removed.map(Number);
+                    }
                     for (var i=0; i < added.length; i++) {
                         this._data[name].push(added[i]);
                     }
@@ -447,6 +453,13 @@ var Bug = Base.extend({
             diff = value != this._data[name];
         }
         if (diff){
+            if (fdesc.type == Bug.FieldType.BUGID) {
+                if(fdesc.multivalue) {
+                    value = value.map(Number);
+                } else {
+                    value = Number(value);
+                }
+            }
             this._modified[name] = value;
             this._changedCb.fire(this, name, value);
             this._checkDependencies(fdesc, value);
@@ -457,6 +470,9 @@ var Bug = Base.extend({
     },
     add: function(name, value) {
         var fdesc = Bug.fd(name);
+        if (fdesc.type == Bug.FieldType.BUGID) {
+            value = Number(value);
+        }
         if (!fdesc.multivalue) {
             this.set(name, value);
             return;
@@ -471,6 +487,9 @@ var Bug = Base.extend({
     },
     remove: function(name, value) {
         var fdesc = Bug.fd(name);
+        if (fdesc.type == Bug.FieldType.BUGID) {
+            value = Number(value);
+        }
         if (!fdesc.multivalue) {
             this.set(name, value);
             return;
@@ -572,12 +591,16 @@ var Bug = Base.extend({
         element.empty();
         var name = element.attr('name');
         var current = this.value(name);
-        this.choices(name).forEach(function(value) {
+        if (!$.isArray(current)) current = [current];
+        this.choices(name).sort().forEach(function(value) {
             var option = $('<option>' + value + '</option>')
                 .attr('value', value);
-            if (value == current)
+            if (current.indexOf(value) != -1) {
                 option.attr('selected', 'selected');
-            element.append(option);
+                element.prepend(option);
+            } else {
+                element.append(option);
+            }
         });
     },
 
@@ -606,8 +629,7 @@ var Bug = Base.extend({
     },
 
     /**
-     * Map for field names which do not match between Bug.create() params and
-     * Bug.fields() return value
+     * Field type numbers
      */
     FieldType: {
         UNKNOWN: 0,
@@ -809,11 +831,13 @@ $.widget("bb.bugentry", {
      * fields: Fields to display in the form
      * title: Title of the dialog
      * defaults: Default values to populate the form with
+     * bug: If set, this will be an edit dialog for given bug object
      */
     options: {
-        fields: ['summary', 'product', 'component', 'severity', 'priority', 'comment'],
-        title: 'Create bug',
+        fields: null,
+        title: '',
         defaults: {},
+        bug: null,
     },
 
     /**
@@ -825,6 +849,13 @@ $.widget("bb.bugentry", {
         // Set click handler
         this.element.on("click", $.proxy(this, "_openDialog"));
         this._form = null;
+        if (this.options.bug) {
+            this._bug = this.options.bug;
+            this.options.defaults = null;
+        }
+        if (this.options.fields == null) {
+            this.options.fields = BB_CONFIG.default.bugentry_fields;
+        }
     },
 
     /**
@@ -840,8 +871,7 @@ $.widget("bb.bugentry", {
      * Opens the bug entry dialog when element is clicked.
      */
     _openDialog: function() {
-        delete this._bug;
-        this._bug = new Bug(this.options.defaults);
+        if (!this._bug) this._bug = new Bug(this.options.defaults);
         if (this._form == null) {
             this._createForm();
             this._form.dialog({
@@ -858,6 +888,7 @@ $.widget("bb.bugentry", {
             });
         }
         this._form.dialog("open");
+        this._form.find("input:first").focus();
     },
 
     /**
@@ -865,7 +896,7 @@ $.widget("bb.bugentry", {
      */
     _createForm: function() {
         if (this._form) return;
-        this._form = $('<form></form>');
+        this._form = $('<form class="bb_bugentry"></form>');
         var table = $('<table></table>');
         this._form.append(table);
 
@@ -900,6 +931,7 @@ $.widget("bb.bugentry", {
      */
     _destroyDialog: function() {
         if (this._form == null) return;
+        if (this.options.defaults != null) this._bug = null;
         this._form.dialog("destroy");
         this._form.remove();
         this._form = null;
@@ -909,21 +941,15 @@ $.widget("bb.bugentry", {
      * Bug entry dialog save button handler
      */
     _saveBug: function() {
-        var params = {};
-        fields = this._form.serializeArray();
-        for (var i=0; i < fields.length; i++) {
-            var field = fields[i];
-            params[field.name] = field.value;
-        }
-        this._bug.set(params);
         this._bug.save().done($.proxy(this, "_createDone"));
     },
+
     /**
      * Bug.save() done-callback handler
      */
     _createDone: function(bug) {
         this._destroyDialog();
-        this._trigger("success", null, { bug: bug, bug_id: bug.value('id') });
+        this._trigger("success", null, { bug: bug, bug_id: bug.id });
     },
 });
 

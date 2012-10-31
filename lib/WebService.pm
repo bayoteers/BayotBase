@@ -90,6 +90,7 @@ use constant FIELD_OVERRIDES => {
     },
     dependson => {
         name => 'depends_on',
+        type => 6,
         is_on_bug_entry => 1,
         multivalue => 1,
     },

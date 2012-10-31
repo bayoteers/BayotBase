@@ -4,3 +4,7 @@
     height:16px;
     background-image: url(images/spinner.gif);
 }
+
+.bb_bugentry input[name=summary] {
+    width: 80ex;
+}
