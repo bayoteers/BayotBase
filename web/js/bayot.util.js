@@ -251,7 +251,7 @@ var Bug = Base.extend({
     save: function()
     {
         if (!this.isModified()) return;
-        if (this._data.id) {
+        if (this.id) {
             var rpc = new Rpc("Bug", "update",
                     this._getUpdateParams());
         } else {
@@ -265,7 +265,7 @@ var Bug = Base.extend({
 
     _getUpdateParams: function()
     {
-        var params = {ids: [this._data.id]};
+        var params = {ids: [this.id]};
         for (var name in this._modified) {
             var fd = Bug.fd(name);
             if (name == 'comment') {
@@ -294,7 +294,7 @@ var Bug = Base.extend({
         this._modified = {};
         if (result.id) {
             // Newly created bug, update
-            this._data.id = result.id;
+            this.id = result.id;
             this.update();
         } else {
             // Existing bug updated
@@ -349,8 +349,8 @@ var Bug = Base.extend({
      */
     update: function() {
         if (this._fetching) return this._fetching.promise();
-        if (!this._data.id) throw "Can't update unsaved bug";
-        var rpc = new Rpc("Bug", "get", {ids:[this._data.id]});
+        if (!this.id) throw "Can't update unsaved bug";
+        var rpc = new Rpc("Bug", "get", {ids:[this.id]});
         rpc.done($.proxy(this, "_getDone"));
         rpc.fail($.proxy(this, "_getFail"));
         this._fetching = $.Deferred();
@@ -533,9 +533,7 @@ var Bug = Base.extend({
                 field.type == Bug.FieldType.MULTI) {
             var element = $("<select></select>");
         } else if (field.type == Bug.FieldType.TEXT) {
-            var element = $("<textarea></textarea>")
-                .attr('rows', 10)
-                .attr('cols', 80);
+            var element = $("<textarea></textarea>");
         } else {
             var element = $("<input></input>");
         }
@@ -828,16 +826,20 @@ $.widget("bb.bugentry", {
     /**
      * Default options
      *
+     * mode: 'create' or 'edit'
      * fields: Fields to display in the form
      * title: Title of the dialog
      * defaults: Default values to populate the form with
-     * bug: If set, this will be an edit dialog for given bug object
+     * bug: Bug object to edit or to use when cloning fields to new bug
+     * clone: Fields to clone from existing bug when creating new bug
      */
     options: {
+        mode: 'create',
         fields: null,
         title: '',
         defaults: {},
         bug: null,
+        clone: [],
     },
 
     /**
@@ -849,12 +851,11 @@ $.widget("bb.bugentry", {
         // Set click handler
         this.element.on("click", $.proxy(this, "_openDialog"));
         this._form = null;
-        if (this.options.bug) {
-            this._bug = this.options.bug;
-            this.options.defaults = null;
-        }
         if (this.options.fields == null) {
             this.options.fields = BB_CONFIG.default.bugentry_fields;
+        }
+        if (this.options.clone.length && this.options.bug == null) {
+            this.options.clone = [];
         }
     },
 
@@ -871,7 +872,17 @@ $.widget("bb.bugentry", {
      * Opens the bug entry dialog when element is clicked.
      */
     _openDialog: function() {
-        if (!this._bug) this._bug = new Bug(this.options.defaults);
+        if (this.options.mode == 'create') {
+            var initial = {};
+            var that = this;
+            this.options.clone.forEach(function(field) {
+                initial[field] = that.options.bug.value(field);
+            });
+            $.extend(initial, this.options.defaults);
+            this._bug = new Bug(initial);
+        } else {
+            this._bug = this.options.bug;
+        }
         if (this._form == null) {
             this._createForm();
             this._form.dialog({
@@ -896,25 +907,25 @@ $.widget("bb.bugentry", {
      */
     _createForm: function() {
         if (this._form) return;
-        this._form = $('<form class="bb_bugentry"></form>');
-        var table = $('<table></table>');
-        this._form.append(table);
+        this._form = $('<form class="bugentry">');
+        var list = $('<ul>');
+        this._form.append(list);
 
         // Create fields
         for (var i = 0; i < this.options.fields.length; i++) {
+            if (this.options.fields[i] == '-') {
+                list.append('<li class="separator"></li>');
+                continue;
+            }
             var fdesc = Bug.fd(this.options.fields[i]);
-            var row = $('<tr></tr>');
-            row.append(
-                $('<th></th>').append(
-                    $('<label></label>')
+            var input = this._bug.createInput(fdesc, false, true);
+            var item = $('<li class="'+fdesc.name+'">')
+                .append($('<label>')
                         .attr("for", fdesc.name)
                         .text(fdesc.display_name)
                 )
-            );
-            var input = this._bug.createInput(fdesc, false, true);
-
-            row.append($('<td></td>').append(input));
-            table.append(row);
+                .append(input);
+            list.append(item);
         }
         // Add required but not shown fields
         var required = Bug.requiredFields();
@@ -931,7 +942,7 @@ $.widget("bb.bugentry", {
      */
     _destroyDialog: function() {
         if (this._form == null) return;
-        if (this.options.defaults != null) this._bug = null;
+        this._bug = null;
         this._form.dialog("destroy");
         this._form.remove();
         this._form = null;
@@ -941,13 +952,18 @@ $.widget("bb.bugentry", {
      * Bug entry dialog save button handler
      */
     _saveBug: function() {
-        this._bug.save().done($.proxy(this, "_createDone"));
+        var saving = this._bug.save()
+        if (saving) {
+            saving.done($.proxy(this, "_saveDone"));
+        } else {
+            this._destroyDialog();
+        }
     },
 
     /**
      * Bug.save() done-callback handler
      */
-    _createDone: function(bug) {
+    _saveDone: function(bug) {
         this._destroyDialog();
         this._trigger("success", null, { bug: bug, bug_id: bug.id });
     },

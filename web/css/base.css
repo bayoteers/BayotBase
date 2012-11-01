@@ -5,6 +5,41 @@
     background-image: url(images/spinner.gif);
 }
 
-.bb_bugentry input[name=summary] {
+form.bugentry ul {
+    list-style: none;
+    padding:0px;
+}
+
+form.bugentry li {
+    display: inline-block;
+    width: 50%;
+}
+
+form.bugentry li * {
+    display: inline-block;
+    vertical-align: top;
+}
+form.bugentry li label {
+    width: 15ex;
+    font-weight: bold;
+}
+
+form.bugentry li.separator {
+    width: 100%;
+    height: 0px;
+}
+
+form.bugentry li.summary {
+    width: 100%;
+}
+
+form.bugentry input[name=summary] {
     width: 80ex;
+}
+form.bugentry li.comment {
+    width: 100%;
+}
+form.bugentry textarea[name=comment] {
+    width: 80ex;
+    height: 10em;
 }
