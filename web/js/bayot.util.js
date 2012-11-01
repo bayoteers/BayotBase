@@ -315,7 +315,7 @@ var Bug = Base.extend({
                     }
                     for (var i=0; i < removed.length; i++) {
                         var index = this._data[name].indexOf(removed[i]);
-                        if (index != -1) this._data[name].pop(index);
+                        if (index != -1) this._data[name].splice(index,1);
                     }
                 } else if (name == 'work_time') {
                     // Special handling for work_time / actual_time
