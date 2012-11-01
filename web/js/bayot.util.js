@@ -479,7 +479,7 @@ var Bug = Base.extend({
         }
         if (!$.isArray(this._data[name])) this._data[name] = [];
         if (this.value(name).indexOf(value) == -1) {
-            this._modified[name] = this._data[name].slice();
+            this._modified[name] = this.value(name).slice();
             this._modified[name].push(value);
             this._changedCb.fire(this, name, this._modified[name]);
             this._checkDependencies(fdesc, value);
@@ -497,7 +497,7 @@ var Bug = Base.extend({
         if (!$.isArray(this._data[name])) this._data[name] = [];
         var index = this.value(name).indexOf(value);
         if (index != -1) {
-            this._modified[name] = this._data[name].slice();
+            this._modified[name] = this.value(name).slice();
             this._modified[name].splice(index, 1);
             this._changedCb.fire(this, name, this._data[name]);
             this._checkDependencies(fdesc, value);
