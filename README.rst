@@ -21,19 +21,24 @@ Features
     * Simple infrastructure for making Bugzilla JSON-RPC calls, and displaying
       a progress indicator while a call is in progress.
 
+    * Javascript library providing common Bugzilla related stuff
+      
+        - Bug class for easy creation, loading and updating bugs via JSON-RPC
+
+        - jQuery bugentry widget for common bug create/edit dialog
+
+        - jQuery userautocomplete widget
+
 
 Requirements
 ------------
 
-    Currently requires hooks for which a patch is supplied for Bugzilla 3.6.2.
+    Bugzilla 4.2 or later
 
 
 Installation
 ------------
 
-    Install Bugzilla as usual, copy the BayotBase directory to extensions, and
-    then from the Bugzilla installation root, execute::
-
-        patch -p1 < extensions/BayotBase/hooks_3.6.2.patch
+    Place the files under 'extensions/BayotBase' directory and run 'checksetup.pl'
 
 
