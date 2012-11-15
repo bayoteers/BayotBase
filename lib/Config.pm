@@ -26,8 +26,8 @@ sub get_param_list {
     my @params = (
         {
             name   => 'bb_use_debug_js',
-            type   => 't',
-            default => '0'
+            type   => 'b',
+            default => 0,
         },
         {
             name   => 'bb_bug_entry_fields',
