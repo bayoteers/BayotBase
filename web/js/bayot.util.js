@@ -216,7 +216,7 @@ var Bug = Base.extend({
         } else {
             this.id = null;
             this._modified = $.extend(true, {}, bug);
-            this._data = {};
+            this._data = $.extend({}, BB_CONFIG.default);
         }
         // Holders for deffed objects
         this._fetching = null;
@@ -534,7 +534,7 @@ var Bug = Base.extend({
         element.attr("name", field.name);
 
         if (element.is('select')) {
-            if (field.multivalue) {
+            if (field.type == Bug.FieldType.MULTI || field.multivalue) {
                 element.attr('multiple', 'multiple');
             }
             this.setSelectOptions(element);
@@ -584,7 +584,7 @@ var Bug = Base.extend({
         var name = element.attr('name');
         var current = this.value(name);
         if (!$.isArray(current)) current = [current];
-        this.choices(name).sort().forEach(function(value) {
+        this.choices(name).forEach(function(value) {
             var option = $('<option>' + value + '</option>')
                 .attr('value', value);
             if (current.indexOf(value) != -1) {
