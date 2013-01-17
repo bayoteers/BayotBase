@@ -88,6 +88,21 @@ sub template_before_process {
     make_bb_config($args, $vars, $file);
 }
 
+sub template_before_create {
+    my ($self, $params) = @_;
+    # TODO: document remove_query_param template filter
+    $params->{config}->{FILTERS}->{remove_query_param} = [
+        sub {
+            my ($context, @args) = @_;
+            return sub {
+                my $query = shift;
+                my ($param) = @args;
+                my @parts = grep($_ !~ /^$param=/, split('&', $query));
+                return join('&', @parts);
+            }
+        }, 1
+    ];
+}
 
 sub config_add_panels {
     my ($self, $args) = @_;
