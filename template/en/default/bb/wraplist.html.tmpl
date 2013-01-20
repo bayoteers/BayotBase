@@ -21,13 +21,17 @@
   [% title = title _ ": " _ (searchname OR defaultsavename) FILTER html %]
 [% END %]
 
+[% qorder = order FILTER uri IF order %]
 [% DEFAULT style_urls = ["skins/standard/buglist.css"] %]
 
 [%############################################################################%]
 [%# Page Header                                                              #%]
 [%############################################################################%]
 
-[% PROCESS global/header.html.tmpl %]
+[% PROCESS global/header.html.tmpl
+  atomlink = "buglist.cgi?$urlquerypart&title=$title&ctype=atom"
+  doc_section = "query.html#list"
+%]
 
 <div class="bz_query_head">
   <span class="bz_query_timestamp">
@@ -47,6 +51,7 @@
       <a href="quips.cgi"><em>[% quip FILTER html %]</em></a>
     </span>
   [% END %]
+
 </div>
 
 [% IF toolong %]
@@ -63,7 +68,6 @@
   'nowordssubstr', 'notmatches', 'anddependson', 'andblocked', 'notdependson',
   'notblocked'
 ] %]
-
 <ul class="search_description">
 [% FOREACH desc_item = search_description %]
   <li>
@@ -111,7 +115,9 @@
         different product</a></li>
     [% END %]
     <li><a href="[% PROCESS edit_search_url %]">Edit this search</a></li>
-    <li><a href="query.cgi">Start a new search</a></li>
+    <li><a href="query.cgi[% IF format.defined -%]
+        ?buglist_format=[% format FILTER uri %]
+      [%- END %]">Start a new search</a></li>
   </ul>
 [% END %]
 
@@ -244,6 +250,9 @@
   query.cgi?[% urlquerypart FILTER html %]
     [%- IF editqueryname != '' %]&amp;known_name=
       [%- editqueryname FILTER uri %]
+    [% END %]
+    [%- IF format.defined %]&amp;buglist_format=
+      [%- format FILTER uri %]
     [% END %]
 [% END %]
 

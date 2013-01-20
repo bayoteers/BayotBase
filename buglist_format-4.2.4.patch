@@ -1,0 +1,86 @@
+diff --git a/buglist.cgi b/buglist.cgi
+index 7439b78..2e7aaef 100755
+--- a/buglist.cgi
++++ b/buglist.cgi
+@@ -952,6 +952,7 @@ else { # remaining_time <= 0
+ 
+ # Define the variables and functions that will be passed to the UI template.
+ 
++$vars->{'format'} = $cgi->param('format');
+ $vars->{'bugs'} = \@bugs;
+ $vars->{'buglist'} = \@bugidlist;
+ $vars->{'buglist_joined'} = join(',', @bugidlist);
+@@ -1118,7 +1119,7 @@ else {
+ # Set 'urlquerypart' once the buglist ID is known.
+ $vars->{'urlquerypart'} = $params->canonicalise_query('order', 'cmdtype',
+                                                       'query_based_on',
+-                                                      'token');
++                                                      'token', 'format');
+ 
+ if ($format->{'extension'} eq "csv") {
+     # We set CSV files to be downloaded, as they are designed for importing
+diff --git a/query.cgi b/query.cgi
+index bfb79e5..62fb18e 100755
+--- a/query.cgi
++++ b/query.cgi
+@@ -264,6 +264,7 @@ $vars->{'default'} = \%default;
+ 
+ $vars->{'format'} = $cgi->param('format');
+ $vars->{'query_format'} = $cgi->param('query_format');
++$vars->{'buglist_format'} = $cgi->param('buglist_format');
+ 
+ # Set default page to "specific" if none provided
+ if (!($cgi->param('query_format') || $cgi->param('format'))) {
+diff --git a/template/en/default/list/list.html.tmpl b/template/en/default/list/list.html.tmpl
+index 3a941c4..500a4af 100644
+--- a/template/en/default/list/list.html.tmpl
++++ b/template/en/default/list/list.html.tmpl
+@@ -143,7 +143,9 @@
+         different product</a></li>
+     [% END %]
+     <li><a href="[% PROCESS edit_search_url %]">Edit this search</a></li>
+-    <li><a href="query.cgi">Start a new search</a></li>
++    <li><a href="query.cgi[% IF format.defined -%]
++        ?buglist_format=[% format FILTER uri %]
++      [%- END %]">Start a new search</a></li>
+   </ul>
+ [% END %]
+ 
+@@ -283,6 +285,9 @@
+     [%- IF editqueryname != '' %]&amp;known_name=
+       [%- editqueryname FILTER uri %]
+     [% END %]
++    [%- IF format.defined %]&amp;buglist_format=
++      [%- format FILTER uri %]
++    [% END %]
+ [% END %]
+ 
+ [% BLOCK enter_bug_link %]
+diff --git a/template/en/default/search/search-advanced.html.tmpl b/template/en/default/search/search-advanced.html.tmpl
+index 780d54e..80b9613 100644
+--- a/template/en/default/search/search-advanced.html.tmpl
++++ b/template/en/default/search/search-advanced.html.tmpl
+@@ -61,6 +61,9 @@ function remove_token() {
+ 
+ <form method="post" action="buglist.cgi" name="queryform" id="queryform"
+       onsubmit="remove_token()">
++[% IF buglist_format.defined %]
++  <input type="hidden" name="format" value="[% buglist_format FILTER html %]"/>
++[% END %]
+ 
+ [% PROCESS search/form.html.tmpl %]
+ 
+diff --git a/template/en/default/search/search-specific.html.tmpl b/template/en/default/search/search-specific.html.tmpl
+index 9ef2994..cc90c88 100644
+--- a/template/en/default/search/search-specific.html.tmpl
++++ b/template/en/default/search/search-specific.html.tmpl
+@@ -42,6 +42,9 @@ for "crash secure SSL flash".
+ <form name="queryform" method="get" action="buglist.cgi">
+ <input type="hidden" name="query_format" value="specific">
+ <input type="hidden" name="order" value="relevance desc">
++[% IF buglist_format.defined %]
++  <input type="hidden" name="format" value="[% buglist_format FILTER html %]"/>
++[% END %]
+ 
+ <table summary="Search fields" class="bz_simple_search_form">
+   <tr>
