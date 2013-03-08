@@ -15,7 +15,7 @@ form.bugentry li {
     width: 50%;
 }
 
-form.bugentry li * {
+form.bugentry li>* {
     display: inline-block;
     vertical-align: top;
 }
