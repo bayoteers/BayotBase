@@ -14,8 +14,9 @@
   #   David Wilson <ext-david.3.wilson@nokia.com>
   #%]
 
-<div id="bb_common_links">
+<ul id="bb_common_links" class="links bb_common_links">
 [%- FOREACH item IN bb_common_links -%]
+  <li>
     <a
     [% IF item.id %]
         id="[% item.id %]"
@@ -24,8 +25,9 @@
         href="[% item.href %]"
     [% END %]
     >[% item.text %]</a>
+  </li>
     [% IF NOT loop.last %]
         |
     [% END %]
 [%- END -%]
-</div>
+</ul>

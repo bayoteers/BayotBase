@@ -1,3 +1,7 @@
+#footer .bb_common_links {
+    padding-left: 1em;
+}
+
 .bb-spinner {
     display: inline;
     width:16px;
