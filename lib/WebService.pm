@@ -24,6 +24,7 @@ package Bugzilla::Extension::BayotBase::WebService;
 
 use base qw(Bugzilla::WebService);
 
+use Bugzilla::Constants;
 use Bugzilla::Keyword;
 use Bugzilla::WebService::Bug;
 use Bugzilla::Util;
@@ -329,7 +330,8 @@ sub fields {
             is_on_bug_entry   => FIELD_OVERRIDES->{$field->name}->{is_on_bug_entry} || $field->enter_bug,
             # EXTRA
             immutable         => FIELD_OVERRIDES->{$field->name}->{immutable} || 0,
-            multivalue        => FIELD_OVERRIDES->{$field->name}->{multivalue} || 0,
+            multivalue        => FIELD_OVERRIDES->{$field->name}->{multivalue} ||
+                                    $field->type == FIELD_TYPE_MULTI_SELECT,
         );
         push @fields, \%field_data;
     }
