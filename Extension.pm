@@ -24,7 +24,7 @@ our $VERSION = '0.01';
 
 # Invoke the bb_common_links hook, aggregating returned menu items into a
 # bb_common_links variable, for hook/global/common-links-link-row.html.tmpl
-sub build_common_links {
+sub _build_common_links {
     my ($args, $vars, $file) = @_;
 
     my %links;
@@ -46,9 +46,30 @@ sub build_common_links {
     ];
 }
 
+# Invoke bb_group_params and add group identifiers on the admin group listing
+# page
+sub _group_identifiers {
+    my $vars = shift;
+    my $group_params = [];
+    Bugzilla::Hook::process('bb_group_params', {group_params => $group_params});
+    $vars->{overrides}->{action}->{name} ||= {};
+    my $overrides = $vars->{overrides}->{action}->{name};
+    for my $param (@$group_params) {
+        warn $param;
+        my $groups = Bugzilla->params->{$param};
+        next unless $groups;
+        $groups = [$groups] if (ref $groups ne 'ARRAY');
+        for my $group (@$groups) {
+            $overrides->{$group} ||= {override_content => 1, content => ''};
+            $overrides->{$group}->{content} .= ', '
+                if $overrides->{$group}->{content};
+            $overrides->{$group}->{content} .= $param;
+        }
+    }
+}
 
 # Create a JSON object containing various useful Bugzilla runtime information.
-sub make_bb_config {
+sub _make_bb_config {
     my ($args, $vars, $file) = @_;
 
     my $config = {};
@@ -84,8 +105,12 @@ sub template_before_process {
     my $vars = $args->{vars};
     my $file = $args->{file};
 
-    build_common_links($args, $vars, $file);
-    make_bb_config($args, $vars, $file);
+    _build_common_links($args, $vars, $file);
+    _make_bb_config($args, $vars, $file);
+    if ($args->{file} eq 'admin/table.html.tmpl' &&
+            $vars->{template}->name eq 'admin/groups/list.html.tmpl') {
+        _group_identifiers($vars);
+    }
 }
 
 sub template_before_create {
