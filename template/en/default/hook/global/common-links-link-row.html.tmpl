@@ -14,20 +14,22 @@
   #   David Wilson <ext-david.3.wilson@nokia.com>
   #%]
 
-<ul id="bb_common_links" class="links bb_common_links">
-[%- FOREACH item IN bb_common_links -%]
-  <li>
-    <a
-    [% IF item.id %]
-        id="[% item.id %]"
-    [% END %]
-    [% IF item.href %]
-        href="[% item.href %]"
-    [% END %]
-    >[% item.text %]</a>
-  </li>
-    [% IF NOT loop.last %]
-        |
-    [% END %]
-[%- END -%]
-</ul>
+[% IF bb_common_links.size %]
+  <ul id="bb_common_links" class="links bb_common_links">
+  [%- FOREACH item IN bb_common_links -%]
+    <li>
+      <a
+      [% IF item.id %]
+          id="[% item.id %]"
+      [% END %]
+      [% IF item.href %]
+          href="[% item.href %]"
+      [% END %]
+      >[% item.text %]</a>
+    </li>
+      [% IF NOT loop.last %]
+          |
+      [% END %]
+  [%- END -%]
+  </ul>
+[% END %]
