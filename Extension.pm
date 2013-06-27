@@ -55,7 +55,6 @@ sub _group_identifiers {
     $vars->{overrides}->{action}->{name} ||= {};
     my $overrides = $vars->{overrides}->{action}->{name};
     for my $param (@$group_params) {
-        warn $param;
         my $groups = Bugzilla->params->{$param};
         next unless $groups;
         $groups = [$groups] if (ref $groups ne 'ARRAY');
