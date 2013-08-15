@@ -19,6 +19,8 @@ use strict;
 use JSON;
 use base qw(Bugzilla::Extension);
 
+use Bugzilla::Extension::BayotBase::Util;
+
 our $VERSION = '0.01';
 
 
@@ -97,17 +99,61 @@ sub _make_bb_config {
     $vars->{bb_config} = JSON->new->utf8->encode($config);
 }
 
+sub install_filesystem {
+    my ($self, $args) = @_;
+    $args->{create_dirs}->{cache_base_dir()} =
+            Bugzilla::Install::Filesystem::DIR_CGI_WRITE;
+}
+
+sub _validate_fielddefs_cache {
+    my $obj = shift;
+    if ($obj->isa('Bugzilla::Field') ||
+        $obj->isa('Bugzilla::Field::ChoiceInterface') ||
+        $obj->isa('Bugzilla::Keyword') ||
+        $obj->isa('Bugzilla::Version') ||
+        $obj->isa('Bugzilla::Milestone') ||
+        $obj->isa('Bugzilla::Group'))
+    {
+        my($atime, $utime);
+        $atime = $utime = time;
+        utime($atime, $utime, cache_ts_file());
+    }
+}
+
+sub object_end_of_create {
+    my ($self, $args) = @_;
+    _validate_fielddefs_cache($args->{object});
+}
+
+sub object_end_of_update {
+    my ($self, $args) = @_;
+    _validate_fielddefs_cache($args->{object});
+}
+
+sub page_before_template {
+    my ($self, $args) = @_;
+    if ($args->{page_id} eq 'bayotbase/fielddefs.js'){
+        print Bugzilla->cgi->header(
+                -expires=>'+1d',
+                -Content_Type=>'text/javascript'
+        );
+        $args->{vars}->{fielddefs_json} = get_field_defs(as_json => 1);
+    }
+}
 
 sub template_before_process {
     my ($self, $args) = @_;
 
     my $vars = $args->{vars};
     my $file = $args->{file};
-
-    _build_common_links($args, $vars, $file);
-    _make_bb_config($args, $vars, $file);
-    if ($args->{file} eq 'admin/table.html.tmpl' &&
-            $vars->{template}->name eq 'admin/groups/list.html.tmpl') {
+    if ($file eq 'global/common-links.html.tmpl') {
+        _build_common_links($args, $vars, $file);
+    } elsif ($file eq 'global/header.html.tmpl') {
+        $vars->{bb_field_cache_ts} = cache_timestamp();
+        _make_bb_config($args, $vars, $file);
+    } elsif ($file eq 'admin/table.html.tmpl' &&
+        $vars->{template}->name eq 'admin/groups/list.html.tmpl')
+    {
         _group_identifiers($vars);
     }
 }
