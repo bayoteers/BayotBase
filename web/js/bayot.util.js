@@ -203,11 +203,6 @@ var Bug = Base.extend({
 
     constructor: function(bug)
     {
-        this._getDone = Bug.initOnCall(this._getDone, this);
-        this.set = Bug.initOnCall(this.set, this);
-        this.add = Bug.initOnCall(this.add, this);
-        this.remove = Bug.initOnCall(this.remove, this);
-
         if (bug.id) {
             // TODO: Might need a better check of bug data completeness
             this.id = bug.id;
@@ -499,9 +494,9 @@ var Bug = Base.extend({
     },
     _checkDependencies: function(fdesc, value)
     {
-        if (!fdesc.depends) return;
-        for (var i=0; i < fdesc.depends.length; i++) {
-            var dname = fdesc.depends[i];
+        if (!Bug._depends[fdesc.name]) return;
+        for (var i=0; i < Bug._depends[fdesc.name].length; i++) {
+            var dname = Bug._depends[fdesc.name][i];
             var choices = this.choices(dname);
             if(choices.indexOf(this.value(dname)) == -1) {
                 this.set(dname, choices[0]);
@@ -636,14 +631,11 @@ var Bug = Base.extend({
         BOOLEAN: 12,
     },
 
-    _fetch: $.Deferred(),
     _rpc: null,
-    _fields: null,
 
     fd: function(name)
     {
-        if (!Bug._fields == null) throw "Bug field data not fetched";
-        var fdesc = Bug._fields[name] || Bug._fields[Bug._internal[name]];
+        var fdesc = BB_FIELDS[name] || BB_FIELDS[Bug._internal[name]];
         return fdesc;
     },
 
@@ -651,69 +643,35 @@ var Bug = Base.extend({
      * Get field descriptors for fields required in Bug.create() RPC.
      */
     requiredFields: function() {
-        if (!Bug._fields == null) throw "Bug field data not fetched";
         var required = [];
-        for (var name in Bug._fields) {
-            if (Bug._fields[name].is_mandatory) {
-                required.push(Bug._fields[name]);
+        for (var name in BB_FIELDS) {
+            if (BB_FIELDS[name].is_mandatory) {
+                required.push(BB_FIELDS[name]);
             }
         }
         return required;
     },
 
-    initFields: function() {
-        if (Bug._rpc == null) {
-            Bug._rpc = new Rpc("BayotBase", "fields");
-            Bug._rpc.done(Bug._processFields);
-            Bug._rpc.fail(function(error) {
-                Bug._rpc = null;
-                Bug._fetch = $.Deferred();
-                alert("Failed to get bug fields: " + error.message);
-            });
-        }
-        return Bug._fetch.promise();
-    },
-
-    initOnCall: function(fn, fnThis)
-    {
-        return function() {
-            var args = [].slice.apply(arguments);
-            if (Bug._fetch.isResolved())
-                return fn.apply(fnThis, args)
-            Bug.initFields().done(function() {
-                fn.apply(fnThis, args);
-            });
-        };
-    },
-
-    /**
-     * Handle BayotBase.fields() RPC result
-     * Stores the field data in
-     */
-    _processFields: function(result) {
-        var fields = {};
-        var depends = {};
-        var internal = {};
-        for (var i = 0; i < result.fields.length; i++) {
-            var fdesc = result.fields[i];
-            fields[fdesc.name] = fdesc;
+    _initFields: function() {
+        // Field dependency map
+        Bug._depends = {};
+        // Field "internal" name map
+        Bug._internal = {};
+        for (var name in BB_FIELDS) {
+            var fdesc = BB_FIELDS[name];
             if (fdesc.value_field) {
-                if (depends[fdesc.value_field] == undefined)
-                    depends[fdesc.value_field] = [];
-                depends[fdesc.value_field].push(fdesc.name);
+                if (Bug._depends[fdesc.value_field] == undefined)
+                    Bug._depends[fdesc.value_field] = [];
+                Bug._depends[fdesc.value_field].push(fdesc.name);
             }
             if (fdesc.name != fdesc.internal_name) {
-                internal[fdesc.internal_name] = fdesc.name;
+                Bug._internal[fdesc.internal_name] = fdesc.name;
             }
         }
-        for (var name in depends) {
-            fields[name].depends = depends[name];
-        }
-        Bug._fields = fields;
-        Bug._internal = internal;
-        Bug._fetch.resolve();
     },
 });
+
+Bug._initFields();
 
 /**
  * User input field autocomplete widget
@@ -841,7 +799,6 @@ $.widget("bb.bugentry", {
      */
     _create: function()
     {
-        this._openDialog = Bug.initOnCall(this._openDialog, this);
         // Set click handler
         this.element.on("click", $.proxy(this, "_openDialog"));
         this._form = null;

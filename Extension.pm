@@ -180,10 +180,4 @@ sub config_add_panels {
     $modules->{BayotBase} = "Bugzilla::Extension::BayotBase::Config";
 }
 
-
-sub webservice {
-    my ($self, $args) = @_;
-    $args->{dispatch}->{'BayotBase'} =
-        "Bugzilla::Extension::BayotBase::WebService";
-}
 __PACKAGE__->NAME;
