@@ -356,7 +356,8 @@ sub cache_base_dir {
 sub cache_ts_file {
     my $filename = cache_base_dir().'lastupdate';
     # Make sure timestamp file exists
-    stat $filename || open(my $fh, ">$filename");
+    -e $filename || open(my $fh, ">$filename") ||
+            warn "Failed to create $filename: $!";
     return $filename;
 }
 
@@ -367,7 +368,7 @@ sub cache_user_file {
     return cache_base_dir()."$uid.json";
 }
 
-sub cache_timestamp { return (stat cache_ts_file())[9]; }
+sub cache_timestamp { return (stat cache_ts_file())[9] || time; }
 
 sub get_field_defs {
     my %args = @_;
@@ -380,22 +381,25 @@ sub get_field_defs {
     my $user_cache_file = cache_user_file($user);
     my $user_cache_ts = (stat($user_cache_file))[9] || 0;
 
+    my $fh;
     if ($cache_ts > $user_cache_ts) {
         $fields = _generate_field_defs($user);
         $json_string = JSON->new->utf8->encode($fields);
-        open(my $fh, ">$user_cache_file")
-            or die "Can't open $user_cache_file";
-        print $fh $json_string;
-        close $fh;
+        open($fh, ">$user_cache_file") and do {
+            print $fh $json_string;
+        } or warn "Failed to write $user_cache_file: $!";
+
     } else {
-        open(my $fh, "<$user_cache_file")
-            or die "Can't open $user_cache_file";
-        $json_string = join('', <$fh>);
-        close $fh;
-        unless ($as_json) {
-            $fields = JSON->new->utf8->decode($json_string);
+        open($fh, "<$user_cache_file") and do {
+            $json_string = join('', <$fh>);
+            $fields = JSON->new->utf8->decode($json_string) unless $as_json;
+        } or do {
+            warn "Failed to read $user_cache_file: $!";
+            $fields = _generate_field_defs($user);
+            $json_string = JSON->new->utf8->encode($fields) if $as_json;
         }
     }
+    close $fh if defined $fh;
     return $as_json ? $json_string : $fields;
 }
 

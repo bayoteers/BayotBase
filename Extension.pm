@@ -114,9 +114,12 @@ sub _validate_fielddefs_cache {
         $obj->isa('Bugzilla::Milestone') ||
         $obj->isa('Bugzilla::Group'))
     {
-        my($atime, $utime);
-        $atime = $utime = time;
-        utime($atime, $utime, cache_ts_file());
+        my $filename = cache_ts_file();
+        my $fh;
+        open($fh, ">$filename") and do {
+            print $fh time;
+            close $fh;
+        } or warn "Failed to update $filename: $!";
     }
 }
 
