@@ -101,8 +101,13 @@ sub _make_bb_config {
 
 sub install_filesystem {
     my ($self, $args) = @_;
-    $args->{create_dirs}->{cache_base_dir()} =
+    my $cache = cache_base_dir();
+    $args->{create_dirs}->{$cache} =
             Bugzilla::Install::Filesystem::DIR_CGI_WRITE;
+    $args->{recurse_dirs}->{$cache} = {
+        dirs => Bugzilla::Install::Filesystem::DIR_CGI_WRITE,
+        files => Bugzilla::Install::Filesystem::CGI_WRITE,
+    };
 }
 
 sub _validate_fielddefs_cache {
