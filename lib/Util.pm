@@ -126,10 +126,12 @@ use constant FIELD_OVERRIDES => {
     },
     op_sys => {
         is_on_bug_entry => 1,
+        is_mandatory => Bugzilla->params->{defaultopsys} ? 0 : 1,
     },
     rep_platform => {
         name => 'platform',
         is_on_bug_entry => 1,
+        is_mandatory => Bugzilla->params->{defaultplatform} ? 0 : 1,
     },
     priority => {
         is_on_bug_entry => 1,
