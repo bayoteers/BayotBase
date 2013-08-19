@@ -272,6 +272,7 @@ sub _generate_field_defs {
                     name     => $product->name,
                     sort_key => 0,
                     visibility_values => [],
+                    is_default => 0,
                 };
             }
         } elsif ($field->name eq 'keywords') {
@@ -280,6 +281,7 @@ sub _generate_field_defs {
                     name     => $keyword->name,
                     sort_key => 0,
                     visibility_values => [],
+                    is_default => 0,
                 };
             }
         } elsif (PRODUCT_SPECIFIC->{$field->name}) {
@@ -301,6 +303,7 @@ sub _generate_field_defs {
                     name => $value->name,
                     sort_key => $sortkey,
                     visibility_values => [$product->name],
+                    is_default => 0,
                 };
             }
         } elsif ($field->is_select) {
@@ -311,6 +314,7 @@ sub _generate_field_defs {
                     sort_key => $value->sortkey,
                     visibility_values => [ defined $vis_val ?
                                            $vis_val->name : () ],
+                    is_default => $value->is_default,
                 };
             }
         }
