@@ -540,7 +540,7 @@ var Bug = Base.extend({
         }
 
         if (field.type == Bug.FieldType.USER) {
-            element.userautocomplete();
+            element.userautocomplete({multiple: field.name == 'cc'});
         }
         if (connect) {
             element.change($.proxy(this, "_inputChanged"));
@@ -677,6 +677,10 @@ Bug._initFields();
  * User input field autocomplete widget
  */
 $.widget("bb.userautocomplete", {
+    // Default options
+    options: {
+        multiple: false,
+    },
     /**
      * Initialize the widget
      */
@@ -684,8 +688,8 @@ $.widget("bb.userautocomplete", {
     {
         // Initialize autocomplete on the element
         this.element.autocomplete({
-            minLength: 3,
             delay: 500,
+            search: $.proxy(this, "_search"),
             source: $.proxy(this, "_source"),
             focus: $.proxy(this, "_onItemFocus"),
             select: $.proxy(this, "_onItemSelect"),
@@ -719,7 +723,10 @@ $.widget("bb.userautocomplete", {
      * jQuery UI autocomplete item focus handler
      */
     _onItemFocus: function(event, ui) {
-        this.element.val(ui.item.name);
+
+        if (!this.options.multiple) {
+            this.element.val(ui.item.name);
+        }
         return false;
     },
 
@@ -727,8 +734,33 @@ $.widget("bb.userautocomplete", {
      * jQuery UI autocomplete item select handler
      */
     _onItemSelect: function(event, ui) {
-        this.element.val(ui.item.name);
+        var pos = this.element.scrollLeft()
+        var value = ui.item.name
+        if (this.options.multiple) {
+            // remove current input
+            terms = this.element.val().split(/,\s*/);
+            terms.pop();
+            // add new value and placeholder for ,
+            terms.push(value);
+            terms.push('');
+            value = terms.join(', ');
+        }
+        this.element.val(value);
+        this.element.scrollLeft(pos + 1000);
+        this.element.change();
         return false;
+    },
+
+    /**
+     * jQuery UI autocomplete search term check
+     */
+    _search: function(event, ui) {
+        var value = this.element.val();
+        if (this.options.multiple) {
+            // for multivalue check only last input
+            value = value.split(/,\s*/).pop();
+        }
+        if (value.length < 3 ) return false;
     },
 
     /**
@@ -736,7 +768,11 @@ $.widget("bb.userautocomplete", {
      */
     _source: function(request, responce) {
         this._respCallback = responce;
-        var terms = this._splitTerms(request.term.toLowerCase());
+        var value = request.term.toLowerCase();
+        if (this.options.multiple) {
+            value = value.split(/,\s*/).pop();
+        }
+        var terms = this._splitTerms(value);
 
         var rpc = new Rpc("User", "get", {match:terms});
         rpc.done($.proxy(this, "_userGetDone"));
