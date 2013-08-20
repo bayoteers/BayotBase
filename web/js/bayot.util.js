@@ -542,6 +542,9 @@ var Bug = Base.extend({
         if (field.type == Bug.FieldType.USER) {
             element.userautocomplete({multiple: field.name == 'cc'});
         }
+        if (field.type == Bug.FieldType.KEYWORDS) {
+            element.keywordautocomplete();
+        }
         if (connect) {
             element.change($.proxy(this, "_inputChanged"));
             if(field.value_field) {
@@ -627,6 +630,7 @@ var Bug = Base.extend({
         DATE: 5,
         BUGID: 6,
         URL: 7,
+        KEYWORDS: 8,
         USER: 11,
         BOOLEAN: 12,
     },
@@ -806,6 +810,69 @@ $.widget("bb.userautocomplete", {
     },
 });
 
+/**
+ * Keyword input field autocomplete widget
+ */
+$.widget("bb.keywordautocomplete", {
+    /**
+     * Initialize the widget
+     */
+    _create: function()
+    {
+        // Initialize autocomplete on the element
+        this.element.autocomplete({
+            delay: 500,
+            focus: function() { return false },
+            select: $.proxy(this, "_onItemSelect"),
+            source: $.proxy(this, "_source"),
+        })
+        // Add spinner
+        this.spinner = $("<div/>").addClass("bb-spinner")
+            .css("position", "absolute")
+            .hide();
+        this.element.after(this.spinner)
+        this.keywords = BB_FIELDS.keywords.values.map(
+                function(value){return value.name})
+    },
+
+    /**
+     * Destroy the widget
+     */
+    destroy: function()
+    {
+        this.element.autocomplete("destroy");
+        this.spinner.remove();
+        $.Widge.prototype.destroy.apply(this);
+    },
+
+    /**
+     * jQuery UI autocomplete item select handler
+     */
+    _onItemSelect: function(event, ui) {
+        var pos = this.element.scrollLeft()
+        var value = ui.item.value
+        // remove current input
+        terms = this.element.val().split(/,\s*/);
+        terms.pop();
+        // add new value and placeholder for ,
+        terms.push(value);
+        terms.push('');
+        value = terms.join(', ');
+        this.element.val(value);
+        this.element.scrollLeft(pos + 1000);
+        this.element.change();
+        return false;
+    },
+
+    /**
+     * jQuery UI autocomplete data source
+     */
+    _source: function(request, response) {
+        var term = request.term.split(/,\s*/).pop();
+        response( $.ui.autocomplete.filter(
+            this.keywords, term ) );
+    },
+});
 
 /**
  * Bug entry widget

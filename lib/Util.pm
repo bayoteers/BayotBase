@@ -115,10 +115,8 @@ use constant FIELD_OVERRIDES => {
         is_on_bug_entry => 1,
     },
     keywords => {
-        type => 3,
         multivalue => 1,
         is_on_bug_entry => 1,
-        # There is keywords type, but this should work like regural multiselect
     },
     delta_ts => {
         name => 'last_change_time',
