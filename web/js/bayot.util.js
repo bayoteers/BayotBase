@@ -34,16 +34,25 @@ function absorb(fn)
 /**
  * RPC object. Wraps the parameters of a Bugzilla RPC up along with callbacks
  * indicating completion state.
+ *
+ * All methods return the Rpc object itself, so that the calls can be chained.
+ *
+ *      new Rpc('Foo', 'bar', {baz:1})
+ *          .done(onBarSuccess)
+ *          .fail(onBarFail)
+ *          .complete(onBarComplete);
+ *
  */
 var Rpc = Base.extend({
     /**
      * Create an instance.
-     *
-     * @param method
-     *      Method name.
-     * @param params
-     *      Object containing method parameters.
-     * @param immediate
+     * @param {String} namespace
+     *      RPC namespace.
+     * @param {String} method
+     *      RPC method name.
+     * @param {Object} params
+     *      RPC method parameters.
+     * @param {Boolean} immediate
      *      Optional; if false, don't immediately start the RPC (e.g. if it is
      *      going to be added to a queue). Defaults to true.
      */
@@ -55,19 +64,10 @@ var Rpc = Base.extend({
         this.response = null;
         this.error = null;
 
-        this.startedCb = jQuery.Callbacks();
-        this.doneCb = jQuery.Callbacks();
-        this.failCb = jQuery.Callbacks();
-        this.completeCb = jQuery.Callbacks()
-
-        // Fires on start; first argument is the RPC object.
-        this.started = $.proxy(this.startedCb, "add");
-        // Fires on success; first argument is the RPC result.
-        this.done = $.proxy(this.doneCb, "add");
-        // Fires on failure; first argument is the RPC failure object.
-        this.fail = $.proxy(this.failCb, "add");
-        // Always fires; first argument is this RPC object.
-        this.complete = $.proxy(this.completeCb, "add");
+        this._startedCb = jQuery.Callbacks();
+        this._doneCb = jQuery.Callbacks();
+        this._failCb = jQuery.Callbacks();
+        this._completeCb = jQuery.Callbacks()
 
         if(immediate !== false) {
             this.start();
@@ -75,7 +75,62 @@ var Rpc = Base.extend({
     },
 
     /**
+     * Add callback to be called when the RPC is started.
+     * @param  {Function} cb
+     * @return {Rpc}
+     *
+     * Function cb gets the Rpc object as first parameter.
+     */
+    started: function(cb)
+    {
+        this._startedCb.add(cb);
+        return this;
+    },
+
+    /**
+     * Add function to be called when the RPC succeeds.
+     * @param  {Function} cb
+     * @return {Rpc}
+     *
+     * Function cb gets RPC result as first parameter.
+     */
+    done: function(cb)
+    {
+        this._doneCb.add(cb);
+        return this;
+    },
+
+    /**
+     * Add function to be called when the RPC fails.
+     * @param  {Function} cb
+     * @return {Rpc}
+     *
+     * Function cb gets RPC error object as first parameter.
+     */
+    fail: function(cb)
+    {
+        this._failCb.add(cb);
+        return this;
+    },
+
+    /**
+     * Add function to be called when the RPC completes (success or failure).
+     * @param  {Function} cb
+     * @return {Rpc}
+     *
+     * Function cb gets the Rpc object as first parameter.
+     */
+    complete: function(cb)
+    {
+        this._completeCb.add(cb);
+        return this;
+    },
+
+    /**
      * Start the RPC.
+     * @return {Rpc}
+     *
+     * Should be used when Rpc object was constructed with immediate == false
      */
     start: function()
     {
@@ -90,11 +145,13 @@ var Rpc = Base.extend({
             error: $.proxy(this, "_onError"),
         });
 
-        this.startedCb.fire(this);
+        this._startedCb.fire(this);
+        return this;
     },
 
     /**
      * Fired on success; records the RPC result and fires any callbacks.
+     * @private
      */
     _onSuccess: function(response)
     {
@@ -102,13 +159,14 @@ var Rpc = Base.extend({
         var that = this;
         absorb(function()
         {
-            that.doneCb.fire(response.result);
-            that.completeCb.fire(that);
+            that._doneCb.fire(response.result);
+            that._completeCb.fire(that);
         });
     },
 
     /**
      * Fired on failure; records the error and fires any callbacks.
+     * @private
      */
     _onError: function(response)
     {
@@ -132,8 +190,8 @@ var Rpc = Base.extend({
         var that = this;
         absorb(function()
         {
-            that.failCb.fire(that.error);
-            that.completeCb.fire(that);
+            that._failCb.fire(that.error);
+            that._completeCb.fire(that);
         });
     }
 });
