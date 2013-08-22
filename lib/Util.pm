@@ -25,7 +25,7 @@ our @EXPORT = qw(
 
 use Bugzilla::Constants;
 use Bugzilla::Keyword;
-use Bugzilla::WebService::Bug;
+use Bugzilla::Status;
 use Bugzilla::Util;
 
 use Scalar::Util qw(blessed);
@@ -58,10 +58,11 @@ use constant FIELD_OVERRIDES => {
     },
     classification => {
         immutable => 1,
-        is_on_bug_entry => 1,
+        is_on_bug_entry => 0,
     },
     component => {
         is_on_bug_entry => 1,
+        value_field => 'product',
     },
     longdesc => {
         name => 'comment',
@@ -144,7 +145,9 @@ use constant FIELD_OVERRIDES => {
     remaining_time => {
         is_on_bug_entry => 1,
     },
-    resolution => {},
+    resolution => {
+        visibility_field => 'status',
+    },
     see_also => {
         multivalue => 1,
     },
@@ -155,6 +158,7 @@ use constant FIELD_OVERRIDES => {
     bug_status => {
         name => 'status',
         is_on_bug_entry => 1,
+        value_field => 'status'
     },
     short_desc => {
         name => 'summary',
@@ -162,6 +166,7 @@ use constant FIELD_OVERRIDES => {
     },
     target_milestone => {
         is_on_bug_entry => 1,
+        value_field => 'product',
     },
     bug_file_loc => {
         name => 'url',
@@ -171,6 +176,7 @@ use constant FIELD_OVERRIDES => {
         type => 2,
         is_mandatory => 1,
         is_on_bug_entry => 1,
+        value_field => 'product',
     },
     status_whiteboard => {
         name => 'whiteboard',
@@ -299,29 +305,50 @@ sub _generate_field_defs {
                 my $sortkey = $value->can('sortkey') ? $value->sortkey : 0;
                 push @values, {
                     name => $value->name,
-                    sort_key => $sortkey,
+                    sort_key => $sortkey || 0,
                     visibility_values => [$product->name],
                     is_default => 0,
                 };
             }
+        } elsif ($field->name eq 'bug_status') {
+            my %statuses;
+            foreach my $value (@{$field->legal_values}) {
+                foreach (@{$value->can_change_to}) {
+                    $statuses{$_->name} ||= { visibility_values => [] };
+                    push (@{$statuses{$_->name}->{visibility_values}},
+                        $value->name)
+                }
+                $statuses{$value->name} ||= { visibility_values => [] };
+                $statuses{$value->name}->{name} = $value->name;
+                $statuses{$value->name}->{sort_key} = $value->sortkey;
+                $statuses{$value->name}->{is_default} = 0;
+            }
+            @values = values %statuses;
         } elsif ($field->is_select) {
             foreach my $value (@{$field->legal_values}) {
                 my $vis_val = $value->visibility_value;
                 push @values, {
                     name => $value->name,
-                    sort_key => $value->sortkey,
+                    sort_key => $value->sortkey || 0,
                     visibility_values => [ defined $vis_val ?
                                            $vis_val->name : () ],
                     is_default => $value->is_default,
                 };
             }
         }
+        @values = sort {$a->{sort_key} <=> $b->{sort_key} ||
+                        $a->{name} cmp $b->{name}} @values;
 
         my $visibility_field = $field->visibility_field
                              ? $field->visibility_field->name : undef;
         my $value_field = $field->value_field
                         ? $field->value_field->name : undef;
-        $value_field = 'product' if PRODUCT_SPECIFIC->{$field->name};
+        my @visibility_values;
+        if ($field->name eq 'resolution') {
+            @visibility_values = map {$_->name} Bugzilla::Status::closed_bug_statuses()
+        } else {
+            @visibility_values = map { $_->name } @{$field->visibility_values};
+        }
 
         my $name = FIELD_OVERRIDES->{$field->name}->{name} || $field->name;
         my $display_name = $field_descs->{$field->name} || $field->description;
@@ -332,14 +359,14 @@ sub _generate_field_defs {
             display_name      => $display_name,
             id                => $field->id,
             is_custom         => $field->custom,
-            value_field       => $value_field,
             values            => \@values,
-            visibility_field  => $visibility_field,
-            visibility_values => [ map { $_->name } @{$field->visibility_values} ],
+            visibility_values => \@visibility_values,
             # OVERRIDABLE
             type              => FIELD_OVERRIDES->{$field->name}->{type} || $field->type,
             is_mandatory      => FIELD_OVERRIDES->{$field->name}->{is_mandatory} || $field->is_mandatory,
             is_on_bug_entry   => FIELD_OVERRIDES->{$field->name}->{is_on_bug_entry} || $field->enter_bug,
+            value_field       => FIELD_OVERRIDES->{$field->name}->{value_field} || $value_field,
+            visibility_field  => FIELD_OVERRIDES->{$field->name}->{visibility_field} || $visibility_field,
             # EXTRA
             immutable         => FIELD_OVERRIDES->{$field->name}->{immutable} || 0,
             multivalue        => FIELD_OVERRIDES->{$field->name}->{multivalue} ||
