@@ -363,8 +363,8 @@ sub _generate_field_defs {
             visibility_values => \@visibility_values,
             # OVERRIDABLE
             type              => FIELD_OVERRIDES->{$field->name}->{type} || $field->type,
-            is_mandatory      => FIELD_OVERRIDES->{$field->name}->{is_mandatory} || $field->is_mandatory,
-            is_on_bug_entry   => FIELD_OVERRIDES->{$field->name}->{is_on_bug_entry} || $field->enter_bug,
+            is_mandatory      => FIELD_OVERRIDES->{$field->name}->{is_mandatory} || $field->is_mandatory ? 1 : 0,
+            is_on_bug_entry   => FIELD_OVERRIDES->{$field->name}->{is_on_bug_entry} || $field->enter_bug ? 1 : 0,
             value_field       => FIELD_OVERRIDES->{$field->name}->{value_field} || $value_field,
             visibility_field  => FIELD_OVERRIDES->{$field->name}->{visibility_field} || $visibility_field,
             # EXTRA
