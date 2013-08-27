@@ -482,8 +482,10 @@ var Bug = Base.extend({
         for (var i=0; i < field.values.length; i++) {
             if (field.values[i].is_default) return field.values[i].name;
         }
-        var choices = this.choices(field);
-        if (choices.length == 0) return choices[0];
+        if (this.isMandatory(field)) {
+            var choices = this.choices(field);
+            if (choices.length == 1) return choices[0];
+        }
     },
 
     choices: function(field)
@@ -693,7 +695,7 @@ var Bug = Base.extend({
             this.set(field, element.val());
         } else {
             var value = this.value(field.name);
-            value = value != undefined ? value : this.choices(field.name)[0];
+            if (value != undefined) value = this.defaultValue(field);
             element.val(value);
         }
 
