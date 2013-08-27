@@ -277,6 +277,7 @@ sub _generate_field_defs {
                     sort_key => 0,
                     visibility_values => [],
                     is_default => 0,
+                    allows_unconfirmed => $product->allows_unconfirmed ? 1 : 0,
                 };
             }
         } elsif ($field->name eq 'keywords') {
@@ -357,8 +358,8 @@ sub _generate_field_defs {
             name              => $name,
             internal_name     => $field->name,
             display_name      => $display_name,
-            id                => $field->id,
-            is_custom         => $field->custom,
+            id                => scalar $field->id,
+            is_custom         => $field->custom ? 1 : 0,
             values            => \@values,
             visibility_values => \@visibility_values,
             # OVERRIDABLE

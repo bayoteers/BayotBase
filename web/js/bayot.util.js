@@ -25,7 +25,9 @@ function absorb(fn)
     try {
         return fn();
     } catch(e) {
-        console.error('absorb(): %o', e);
+        if(typeof console !== 'undefined') {
+            console.error('absorb(): %o', e);
+        }
         throw e;
     }
 }
@@ -259,20 +261,11 @@ $(document).ready($.proxy(RpcProgressView, "init"));
  */
 var Bug = Base.extend({
 
-    constructor: function(bug)
+    constructor: function(bug, noAlerts)
     {
-        if (bug.id) {
-            // TODO: Might need a better check of bug data completeness
-            this.id = bug.id;
-            this._data = $.extend(true, {}, bug);
-            this._modified = {};
-        } else {
-            this.id = null;
-            this._modified = $.extend(true, {}, bug);
-            this._data = $.extend({}, BB_CONFIG.default);
-        }
         // Holders for deffed objects
         this._fetching = null;
+        this._alert = !noAlerts;
 
         // Fires when bug field has been updated in DB
         this._updateCb = jQuery.Callbacks();
@@ -291,6 +284,22 @@ var Bug = Base.extend({
         // Callback params (bug_object, changed_field, controlled_field, is_visible)
         this._visibilityCb = jQuery.Callbacks();
         this.visibilityUpdated = $.proxy(this._visibilityCb, "add");
+
+        if (bug.id) {
+            // TODO: Might need a better check of bug data completeness
+            this.id = bug.id;
+            this._data = $.extend(true, {}, bug);
+            this._modified = {};
+        } else {
+            this.id = null;
+            this._modified = $.extend(true, {}, bug);
+            this._data = {};
+            for (var name in BB_FIELDS) {
+                if (bug[name] != undefined) continue;
+                var def = this.defaultValue(name);
+                if (def != undefined) this.set(name, def);
+            }
+        }
     },
     isModified: function()
     {
@@ -312,7 +321,8 @@ var Bug = Base.extend({
             var rpc = new Rpc("Bug", "update",
                     this._getUpdateParams());
         } else {
-            var rpc = new Rpc("Bug", "create", this._modified);
+            var rpc = new Rpc("Bug", "create",
+                    this._getCreateParams());
         }
         rpc.done($.proxy(this, "_saveDone"))
             .fail($.proxy(this, "_saveFail"));
@@ -323,11 +333,10 @@ var Bug = Base.extend({
     {
         var params = {ids: [this.id]};
         for (var name in this._modified) {
-            var fd = Bug.fd(name);
             if (name == 'comment') {
                 params[name] = {body: this._modified[name]};
                 // TODO private comment support?
-            } else if (fd.multivalue) {
+            } else if (this.field(name).multivalue) {
                 var add = [];
                 var remove = this._data[name].map(String);
                 this._modified[name].forEach(function(value) {
@@ -345,6 +354,16 @@ var Bug = Base.extend({
         }
         return params;
     },
+
+    _getCreateParams: function()
+    {
+        var params = {};
+        for (var name in this._modified) {
+            if (this.field(name).is_on_bug_entry) params[name] = this._modified[name];
+        }
+        return params;
+    },
+
     _saveDone: function(result)
     {
         this._modified = {};
@@ -356,13 +375,13 @@ var Bug = Base.extend({
             // Existing bug updated
             var changes = result.bugs[0].changes;
             for (var name in changes) {
-                var fd = Bug.fd(name);
+                var field = this.field(name);
                 var change = changes[name];
-                if (fd.multivalue) {
+                if (field.multivalue) {
                     if (!$.isArray(this._data[name])) this._data[name] = [];
                     var added = change.added ? change.added.split(/\s*,\s*/) : [];
                     var removed = change.removed ? change.removed.split(/\s*,\s*/) : [];
-                    if (fd.type == Bug.FieldType.BUGID) {
+                    if (field.type == Bug.FieldType.BUGID) {
                         added = added.map(Number);
                         removed = removed.map(Number);
                     }
@@ -393,7 +412,7 @@ var Bug = Base.extend({
     },
     _saveFail: function(error)
     {
-        alert("Saving bug failed: " + error.message);
+        if (this._alert) alert("Saving bug failed: " + error.message);
         if (this._saving) {
             this._saving.reject(this, error);
             this._saving = null;
@@ -415,7 +434,13 @@ var Bug = Base.extend({
 
     _getDone: function(result) {
         for (var name in result.bugs[0]) {
-            this.set(name, result.bugs[0][name]);
+            try {
+                var field = this.field(name);
+                this.set(field, result.bugs[0][name]);
+            } catch(e) {
+                // We just skip unknown fields
+                continue;
+            }
         }
         for (var name in this._modified) {
             this._data[name] = this._modified[name];
@@ -434,7 +459,7 @@ var Bug = Base.extend({
     },
 
     _getFail: function(error) {
-        alert("Loading bug failed: " + error.message);
+        if (this._alert) alert("Loading bug failed: " + error.message);
         if (this._saving) {
             this._saving.reject(this);
             this._saving = null;
@@ -445,19 +470,34 @@ var Bug = Base.extend({
         }
     },
 
-    value: function(name)
+    value: function(field)
     {
-        return this._modified[name] || this._data[name];
+        field = this.field(field);
+        return this._modified[field.name] || this._data[field.name];
     },
-    choices: function(name)
+
+    defaultValue: function(field)
     {
-        var fdesc = Bug.fd(name);
-        if (fdesc == undefined) return [];
-        var current = this._data[fdesc.name];
+        field = this.field(field);
+        for (var i=0; i < field.values.length; i++) {
+            if (field.values[i].is_default) return field.values[i].name;
+        }
+        var choices = this.choices(field);
+        if (choices.length == 0) return choices[0];
+    },
+
+    choices: function(field)
+    {
+        field = this.field(field);
+        var current = this._data[field.name];
         var choices = [];
-        var visibleFor = fdesc.value_field ? this.value(fdesc.value_field) : null;
-        fdesc.values.forEach(function(value) {
+        var visibleFor = field.value_field ? this.value(field.value_field) : null;
+        var allowUnconfrimed = field.name == 'status' ?
+                this._allowUnconfirmed() : true;
+        field.values.forEach(function(value) {
             if (visibleFor && value.visibility_values.indexOf(visibleFor) == -1)
+                return;
+            if (value.name == 'UNCONFIRMED' && !allowUnconfrimed)
                 return;
             choices.push(value);
         });
@@ -473,6 +513,38 @@ var Bug = Base.extend({
         return choices;
     },
 
+    _allowUnconfirmed: function() {
+        var field = this.field('product');
+        var product = this.value(field);
+        for (var i=0; i < field.values.length; i++) {
+            if (field.values[i].name == product) {
+                return field.values[i].allows_unconfirmed;
+            }
+        }
+        return true;
+    },
+
+    isMandatory: function(field)
+    {
+        field = this.field(field);
+        return field.is_mandatory && this.choices(field).length > 1
+                && this.isVisible(field);
+    },
+
+    /**
+     * Get field descriptors for fields required in Bug.create() RPC.
+     */
+    requiredFields: function() {
+        var required = [];
+        for (var name in BB_FIELDS) {
+            var field = BB_FIELDS[name];
+            if (this.isMandatory(field)) {
+                required.push(field);
+            }
+        }
+        return required;
+    },
+
     /**
      * Set bug field values
      *
@@ -480,83 +552,83 @@ var Bug = Base.extend({
      *   or
      * set(field_name, value) - to set single value
      */
-    set: function(name, value) {
+    set: function(field, value) {
         if(arguments.length == 1) {
-            for (var key in name) {
+            for (var key in field) {
                 this.set(key, name[key]);
             }
             return;
         }
-        var fdesc = Bug.fd(name);
-        if (fdesc.immutable)
+        field = this.field(field);
+        if (field.immutable)
             return;
         var diff = false;
-        if (fdesc.multivalue) {
+        if (field.multivalue) {
             if (!value) {
                 value = [];
             } else if ( !$.isArray(value) ){
                 value = value.split(/\s*,\s*/);
             }
-            if (this._data[name] == undefined) this._data[name] = [];
-            diff = value.sort().join() != this._data[name].sort().join();
+            if (this._data[field.name] == undefined) this._data[field.name] = [];
+            diff = value.sort().join() != this._data[field.name].sort().join();
         } else {
-            diff = value != this._data[name];
+            diff = value != this._data[field.name];
         }
         if (diff){
-            if (fdesc.type == Bug.FieldType.BUGID) {
-                if(fdesc.multivalue) {
+            if (field.type == Bug.FieldType.BUGID) {
+                if(field.multivalue) {
                     value = value.map(Number);
                 } else {
                     value = Number(value);
                 }
             }
-            this._modified[name] = value;
-            this._changedCb.fire(this, name, value);
-            this._checkDependencies(fdesc, value);
-            this._checkVisibilities(fdesc.name);
+            this._modified[field.name] = value;
+            this._changedCb.fire(this, field.name, value);
+            this._checkDependencies(field.name);
+            this._checkVisibilities(field.name);
         } else {
-            delete this._modified[name];
-            this._checkDependencies(fdesc, value);
-            this._checkVisibilities(fdesc.name);
+            delete this._modified[field.name];
+            this._checkDependencies(field.name);
+            this._checkVisibilities(field.name);
         }
     },
-    add: function(name, value) {
-        var fdesc = Bug.fd(name);
-        if (fdesc.type == Bug.FieldType.BUGID) value = Number(value);
-        if (!fdesc.multivalue) {
-            this.set(name, value);
+    add: function(field, value) {
+        field = this.field(field);
+        if (field.type == Bug.FieldType.BUGID) value = Number(value);
+        if (!field.multivalue) {
+            this.set(field, value);
         } else {
-            var new_value = this.value(name).slice();
+            var new_value = this.value(field).slice();
             if (new_value.indexOf(value) == -1) {
                 new_value.push(value);
-                this.set(name, current_value);
+                this.set(field, new_value);
             }
         }
     },
-    remove: function(name, value) {
-        var fdesc = Bug.fd(name);
-        if (fdesc.type == Bug.FieldType.BUGID) value = Number(value);
-        if (!fdesc.multivalue) {
-            if (value == this.value(name)) this.set(name, '');
+    remove: function(field, value) {
+        field = this.field(field);
+        if (field.type == Bug.FieldType.BUGID) value = Number(value);
+        if (!field.multivalue) {
+            if (value == this.value(field)) this.set(field, '');
         } else {
-            var new_value = this.value(name).slice();
+            var new_value = this.value(field).slice();
             var index = new_value.indexOf(value);
             if (index != -1) {
                 new_value.splice(index, 1);
-                this.set(name, new_value);
+                this.set(field, new_value);
             }
         }
     },
-    _checkDependencies: function(fdesc, value)
+    _checkDependencies: function(name)
     {
-        if (!Bug._depends[fdesc.name]) return;
-        for (var i=0; i < Bug._depends[fdesc.name].length; i++) {
-            var dname = Bug._depends[fdesc.name][i];
+        if (!Bug._depends[name]) return;
+        for (var i=0; i < Bug._depends[name].length; i++) {
+            var dname = Bug._depends[name][i];
             var choices = this.choices(dname);
-            if(choices.indexOf(this.value(dname)) == -1) {
+            if (choices.indexOf(this.value(dname)) == -1) {
                 this.set(dname, choices[0]);
             }
-            this._choicesCb.fire(this, fdesc.name, dname, choices);
+            this._choicesCb.fire(this, name, dname, choices);
         }
     },
     _checkVisibilities: function(name)
@@ -566,7 +638,7 @@ var Bug = Base.extend({
         if (!$.isArray(values)) values = [values];
         for (var i=0; i < Bug._visibility[name].length; i++) {
             var dname = Bug._visibility[name][i];
-            var visibleOn = Bug.fd(dname).visibility_values;
+            var visibleOn = this.field(dname).visibility_values;
             for (var j=0; j < values.length; j++) {
                 if(visibleOn.indexOf(values[j]) == -1) {
                     this._visibilityCb.fire(this, name, dname, false);
@@ -582,12 +654,12 @@ var Bug = Base.extend({
      * @param  {String}  name Field name
      * @return {Boolean}      True if field is visible
      */
-    isVisible: function(name)
+    isVisible: function(field)
     {
-        var fdesc = Bug.fd(name);
-        if (!fdesc.visibility_field) return true;
-        var visibilityValue = this.value(fdesc.visibility_field);
-        if (fdesc.visibility_values.indexOf(visibilityValue) != -1) return true;
+        field = this.field(field);
+        if (!field.visibility_field) return true;
+        var visibilityValue = this.value(field.visibility_field);
+        if (field.visibility_values.indexOf(visibilityValue) != -1) return true;
         return false;
     },
 
@@ -599,9 +671,7 @@ var Bug = Base.extend({
      * @return {Object}         jQuery element
      */
     createInput: function(field, hidden, connect) {
-        if (!$.isPlainObject(field)) {
-            field = Bug.fd(field);
-        }
+        field = this.field(field);
         if (hidden) {
             var element = $('<input type="hidden"></input>');
         } else if (field.type == Bug.FieldType.SELECT ||
@@ -611,6 +681,7 @@ var Bug = Base.extend({
             var element = $("<textarea></textarea>");
         } else {
             var element = $("<input></input>");
+            element.addClass('text_input field_value');
         }
         element.attr("name", field.name);
 
@@ -618,7 +689,8 @@ var Bug = Base.extend({
             if (field.type == Bug.FieldType.MULTI || field.multivalue) {
                 element.attr('multiple', 'multiple');
             }
-            this.setSelectOptions(element);
+            this._setSelectOptions(element);
+            this.set(field, element.val());
         } else {
             var value = this.value(field.name);
             value = value != undefined ? value : this.choices(field.name)[0];
@@ -640,7 +712,7 @@ var Bug = Base.extend({
                     if (element.attr('type') == 'hidden') {
                         element.val(bug.value(field));
                     } else if(element.is('select')) {
-                        that.setSelectOptions(element);
+                        that._setSelectOptions(element);
                     }
                 });
             }
@@ -680,17 +752,20 @@ var Bug = Base.extend({
     /**
      * Set options for select field
      */
-    setSelectOptions: function(element)
+    _setSelectOptions: function(element)
     {
         if(!element.is('select')) return;
         element.empty();
         var name = element.attr('name');
-        var current = this.value(name);
-        if (!$.isArray(current)) current = [current];
+        var currentValue = this.value(name);
+        var defaultValue = this.defaultValue(name);
+        if (!$.isArray(currentValue)) currentValue = [currentValue];
         this.choices(name).forEach(function(value) {
             var option = $('<option>' + value + '</option>')
                 .attr('value', value);
-            if (current.indexOf(value) != -1) {
+            if ( (currentValue.length == 0 && value == defaultValue) ||
+                 (currentValue.indexOf(value) != -1) )
+            {
                 option.attr('selected', 'selected');
                 element.prepend(option);
             } else {
@@ -706,13 +781,11 @@ var Bug = Base.extend({
      */
     createLabel: function(field)
     {
-        if (!$.isPlainObject(field)) {
-            field = Bug.fd(field);
-        }
+        field = this.field(field);
         var element = $("<label>")
             .attr('for', field.name)
             .text(field.display_name);
-        if(!this.isVisible(field.name)) {
+        if (!this.isVisible(field.name)) {
             element.hide();
         }
         this.visibilityUpdated(
@@ -726,6 +799,16 @@ var Bug = Base.extend({
             });
         return element;
     },
+
+    field: function(field)
+    {
+        if (!$.isPlainObject(field)) {
+            var fdesc = BB_FIELDS[field] || BB_FIELDS[Bug._internal[field]];
+            if(!fdesc) throw "Unknown field: " + field;
+            return fdesc;
+        }
+        return field;
+    }
 
 }, {
     get: function(ids, callback)
@@ -765,28 +848,6 @@ var Bug = Base.extend({
         KEYWORDS: 8,
         USER: 11,
         BOOLEAN: 12,
-    },
-
-    _rpc: null,
-
-    fd: function(name)
-    {
-        var fdesc = BB_FIELDS[name] || BB_FIELDS[Bug._internal[name]];
-        if(!fdesc) throw "Unknown field: " + name;
-        return fdesc;
-    },
-
-    /**
-     * Get field descriptors for fields required in Bug.create() RPC.
-     */
-    requiredFields: function() {
-        var required = [];
-        for (var name in BB_FIELDS) {
-            if (BB_FIELDS[name].is_mandatory) {
-                required.push(BB_FIELDS[name]);
-            }
-        }
-        return required;
     },
 
     _initFields: function() {
@@ -1111,19 +1172,19 @@ $.widget("bb.bugentry", {
                 list.append('<li class="separator"></li>');
                 continue;
             }
-            var fdesc = Bug.fd(this.options.fields[i]);
-            var input = this._bug.createInput(fdesc, false, true);
-            var item = $('<li class="'+fdesc.name+'">')
-                .append(this._bug.createLabel(fdesc))
+            var field = this._bug.field(this.options.fields[i]);
+            var input = this._bug.createInput(field, false, true);
+            var item = $('<li class="'+field.name+'">')
+                .append(this._bug.createLabel(field))
                 .append(input);
             list.append(item);
         }
         // Add required but not shown fields
-        var required = Bug.requiredFields();
+        var required = this._bug.requiredFields();
         for (var i=0; i < required.length; i++) {
-            var fdesc = required[i];
-            if(this.options.fields.indexOf(fdesc.name) != -1) continue;
-            var input = this._bug.createInput(fdesc, true, true);
+            var field = required[i];
+            if(this.options.fields.indexOf(field.name) != -1) continue;
+            var input = this._bug.createInput(field, false, true);
             this._form.append(input);
         }
     },
