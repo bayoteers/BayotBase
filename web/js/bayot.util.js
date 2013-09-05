@@ -695,7 +695,7 @@ var Bug = Base.extend({
             this.set(field, element.val());
         } else {
             var value = this.value(field.name);
-            if (value != undefined) value = this.defaultValue(field);
+            if (value == undefined) value = this.defaultValue(field);
             element.val(value);
         }
 
