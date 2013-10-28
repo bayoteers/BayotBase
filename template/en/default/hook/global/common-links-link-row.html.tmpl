@@ -23,12 +23,12 @@
       [% END %]
       <a
       [% IF item.id %]
-          id="[% item.id %]"
+          id="[% item.id FILTER none %]"
       [% END %]
       [% IF item.href %]
-          href="[% item.href %]"
+          href="[% item.href FILTER html %]"
       [% END %]
-      >[% item.text %]</a>
+      >[% item.text FILTER html %]</a>
     </li>
   [%- END -%]
   </ul>
