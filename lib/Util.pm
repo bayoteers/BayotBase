@@ -24,7 +24,9 @@ our @EXPORT = qw(
 );
 
 use Bugzilla::Constants;
+use Bugzilla::Component;
 use Bugzilla::Keyword;
+use Bugzilla::Milestone;
 use Bugzilla::Status;
 use Bugzilla::Util;
 
