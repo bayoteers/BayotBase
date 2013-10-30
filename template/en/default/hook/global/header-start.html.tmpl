@@ -10,7 +10,7 @@
   #   David Wilson <ext-david.3.wilson@nokia.com>
   #%]
 
-[%- IF Bugzilla.params.bb_use_debug_js -%]
+[%- IF Param('bb_use_debug_js') -%]
     <script src="[% 'extensions/BayotBase/web/js/jquery-1.7.1.js' FILTER mtime %]"></script>
     <script src="[% 'extensions/BayotBase/web/js/es5-shim.js' FILTER mtime %]"></script>
 [%- ELSE -%]
