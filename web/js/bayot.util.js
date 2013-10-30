@@ -983,7 +983,9 @@ $.widget("bb.userautocomplete", {
 
         new Rpc("User", "get", {match:terms})
             .done($.proxy(this, "_userGetDone"))
-            .complete($.proxy(this.spinner, "hide"));
+            .complete($.proxy(function(){
+                this.spinner.hide();
+            }, this));
 
         this.spinner.css("top", this.element.position().top)
             .css("left", this.element.position().left + this.element.width())
