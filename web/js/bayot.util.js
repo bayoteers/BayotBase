@@ -359,7 +359,14 @@ var Bug = Base.extend({
     {
         var params = {};
         for (var name in this._modified) {
-            if (this.field(name).is_on_bug_entry) params[name] = this._modified[name];
+            var field = this.field(name);
+            var value = this._modified[name];
+            if (!field.is_on_bug_entry) continue;
+            if (!value) continue;
+            if (field.multivalue && !$.isArray(value)) {
+                value = value.split(/\s?,\s?/);
+            }
+            params[name] = value;
         }
         return params;
     },
