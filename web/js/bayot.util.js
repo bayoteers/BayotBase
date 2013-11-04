@@ -363,8 +363,12 @@ var Bug = Base.extend({
             var value = this._modified[name];
             if (!field.is_on_bug_entry) continue;
             if (!value) continue;
-            if (field.multivalue && !$.isArray(value)) {
-                value = value.split(/\s?,\s?/);
+            if (field.multivalue) {
+                if (typeof(value) == "string") {
+                    value = value.split(/\s?,\s?/);
+                } else if (typeof(value) == "number") {
+                    value = [value];
+                }
             }
             params[name] = value;
         }
