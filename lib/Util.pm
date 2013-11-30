@@ -4,32 +4,39 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #
-# Copyright (C) 2012 Jolla Ltd.
+# Copyright (C) 2013 Jolla Ltd.
 # Contact: Pami Ketolainen <pami.ketolainen@jollamobile.com>
 
-=head1 NAME
-
-Bugzilla::Extension::BayotBase::WebService
-
-=head1 DESCRIPTION
-
-Webservice methods for BayotBase extension
-
-=cut
-
+package Bugzilla::Extension::BayotBase::Util;
 use strict;
 use warnings;
 
-package Bugzilla::Extension::BayotBase::WebService;
+use Bugzilla::Error;
 
-use base qw(Bugzilla::WebService);
+use base qw(Exporter);
+
+our @EXPORT = qw(
+    cache_base_dir
+    cache_timestamp
+    cache_ts_file
+    cache_user_file
+    get_field_defs
+);
 
 use Bugzilla::Constants;
+use Bugzilla::Component;
 use Bugzilla::Keyword;
-use Bugzilla::WebService::Bug;
+use Bugzilla::Milestone;
+use Bugzilla::Status;
 use Bugzilla::Util;
 
-use constant PRODUCT_SPECIFIC_FIELDS => qw(version target_milestone component);
+use Scalar::Util qw(blessed);
+
+use constant PRODUCT_SPECIFIC => {
+    version          => 1,
+    target_milestone => 1,
+    component        => 1,
+};
 
 use constant FIELD_OVERRIDES => {
     alias => {
@@ -53,10 +60,11 @@ use constant FIELD_OVERRIDES => {
     },
     classification => {
         immutable => 1,
-        is_on_bug_entry => 1,
+        is_on_bug_entry => 0,
     },
     component => {
         is_on_bug_entry => 1,
+        value_field => 'product',
     },
     longdesc => {
         name => 'comment',
@@ -110,10 +118,8 @@ use constant FIELD_OVERRIDES => {
         is_on_bug_entry => 1,
     },
     keywords => {
-        type => 3,
         multivalue => 1,
         is_on_bug_entry => 1,
-        # There is keywords type, but this should work like regural multiselect
     },
     delta_ts => {
         name => 'last_change_time',
@@ -121,10 +127,12 @@ use constant FIELD_OVERRIDES => {
     },
     op_sys => {
         is_on_bug_entry => 1,
+        is_mandatory => Bugzilla->params->{defaultopsys} ? 0 : 1,
     },
     rep_platform => {
         name => 'platform',
         is_on_bug_entry => 1,
+        is_mandatory => Bugzilla->params->{defaultplatform} ? 0 : 1,
     },
     priority => {
         is_on_bug_entry => 1,
@@ -139,7 +147,9 @@ use constant FIELD_OVERRIDES => {
     remaining_time => {
         is_on_bug_entry => 1,
     },
-    resolution => {},
+    resolution => {
+        visibility_field => 'status',
+    },
     see_also => {
         multivalue => 1,
     },
@@ -150,6 +160,7 @@ use constant FIELD_OVERRIDES => {
     bug_status => {
         name => 'status',
         is_on_bug_entry => 1,
+        value_field => 'status'
     },
     short_desc => {
         name => 'summary',
@@ -157,6 +168,7 @@ use constant FIELD_OVERRIDES => {
     },
     target_milestone => {
         is_on_bug_entry => 1,
+        value_field => 'product',
     },
     bug_file_loc => {
         name => 'url',
@@ -166,6 +178,7 @@ use constant FIELD_OVERRIDES => {
         type => 2,
         is_mandatory => 1,
         is_on_bug_entry => 1,
+        value_field => 'product',
     },
     status_whiteboard => {
         name => 'whiteboard',
@@ -246,106 +259,182 @@ use constant EXTRA_FIELDS => (
     },
 );
 
-use constant RPC_TYPES => {
-    is_custom         => 'boolean',
-    internal_name     => 'string',
-    display_name      => 'string',
-    id                => 'int',
-    value_field       => 'string',
-    visibility_field  => 'string',
-    name              => 'string',
-    type              => 'int',
-    is_mandatory      => 'boolean',
-    is_on_bug_entry   => 'boolean',
-    immutable         => 'boolean',
-    multivalue        => 'boolean',
-};
+sub _generate_field_defs {
+    my ($self, $user) = @_;
+    $user ||= Bugzilla->user;
 
-BEGIN {
-  # USe _legal_field_values from Webservice::Bug
-  *_legal_field_values = \&Bugzilla::WebService::Bug::_legal_field_values;
-}
-
-=head1 METHODS
-
-=head2 fields
-
-=cut
-
-sub fields {
-    my $self = shift;
-    my @fields;
+    my %fields;
     my $field_descs = template_var('field_descs');
+    my %selectable_products = map {$_->id => $_}
+                                  @{$user->get_selectable_products};
+
     foreach my $field (@{Bugzilla->fields}) {
         next unless $field->custom or defined FIELD_OVERRIDES->{$field->name};
 
         my @values;
         if ($field->name eq 'product') {
-            foreach my $product (@{Bugzilla->user->get_enterable_products}) {
+            foreach my $product (values %selectable_products) {
                 push @values, {
-                    name     => $self->type('string', $product->name),
-                    sort_key => $self->type('int', 0),
-                    sortkey  => $self->type('int', 0), # deprecated
+                    name     => $product->name,
+                    sort_key => 0,
                     visibility_values => [],
+                    is_default => 0,
+                    allows_unconfirmed => $product->allows_unconfirmed ? 1 : 0,
                 };
-
-
             }
         } elsif ($field->name eq 'keywords') {
             foreach my $keyword (Bugzilla::Keyword->get_all) {
                 push @values, {
-                    name     => $self->type('string', $keyword->name),
-                    sort_key => $self->type('int', 0),
-                    sortkey  => $self->type('int', 0), # deprecated
+                    name     => $keyword->name,
+                    sort_key => 0,
                     visibility_values => [],
+                    is_default => 0,
                 };
             }
-        } elsif ($field->is_select or grep($_ eq $field->name, PRODUCT_SPECIFIC_FIELDS)) {
-             @values = @{ $self->_legal_field_values({ field => $field }) };
+        } elsif (PRODUCT_SPECIFIC->{$field->name}) {
+            my @list;
+            if ($field->name eq 'version') {
+                @list = Bugzilla::Version->get_all;
+            }
+            elsif ($field->name eq 'component') {
+                @list = Bugzilla::Component->get_all;
+            }
+            else {
+                @list = Bugzilla::Milestone->get_all;
+            }
+            foreach my $value (@list) {
+                my $product = $selectable_products{$value->product_id};
+                next unless defined $product;
+                my $sortkey = $value->can('sortkey') ? $value->sortkey : 0;
+                push @values, {
+                    name => $value->name,
+                    sort_key => $sortkey || 0,
+                    visibility_values => [$product->name],
+                    is_default => 0,
+                };
+            }
+        } elsif ($field->name eq 'bug_status') {
+            my %statuses;
+            foreach my $value (@{$field->legal_values}) {
+                foreach (@{$value->can_change_to}) {
+                    $statuses{$_->name} ||= { visibility_values => [] };
+                    push (@{$statuses{$_->name}->{visibility_values}},
+                        $value->name)
+                }
+                $statuses{$value->name} ||= { visibility_values => [] };
+                $statuses{$value->name}->{name} = $value->name;
+                $statuses{$value->name}->{sort_key} = $value->sortkey;
+                $statuses{$value->name}->{is_default} = 0;
+            }
+            @values = values %statuses;
+        } elsif ($field->is_select) {
+            foreach my $value (@{$field->legal_values}) {
+                my $vis_val = $value->visibility_value;
+                push @values, {
+                    name => $value->name,
+                    sort_key => $value->sortkey || 0,
+                    visibility_values => [ defined $vis_val ?
+                                           $vis_val->name : () ],
+                    is_default => $value->is_default,
+                };
+            }
         }
-        # TODO: fetch available keywords
+        @values = sort {$a->{sort_key} <=> $b->{sort_key} ||
+                        $a->{name} cmp $b->{name}} @values;
 
         my $visibility_field = $field->visibility_field
                              ? $field->visibility_field->name : undef;
         my $value_field = $field->value_field
                         ? $field->value_field->name : undef;
-        if (grep($_ eq $field->name, PRODUCT_SPECIFIC_FIELDS)) {
-            $value_field = 'product';
+        my @visibility_values;
+        if ($field->name eq 'resolution') {
+            @visibility_values = map {$_->name} Bugzilla::Status::closed_bug_statuses()
+        } else {
+            @visibility_values = map { $_->name } @{$field->visibility_values};
         }
+
+        my $name = FIELD_OVERRIDES->{$field->name}->{name} || $field->name;
         my $display_name = $field_descs->{$field->name} || $field->description;
 
-        my %field_data = (
-            is_custom         => $field->custom,
+        $fields{$name} = {
+            name              => $name,
             internal_name     => $field->name,
             display_name      => $display_name,
-            id                => $field->id,
-            value_field       => $value_field,
+            id                => scalar $field->id,
+            is_custom         => $field->custom ? 1 : 0,
             values            => \@values,
-            visibility_field  => $visibility_field,
-            visibility_values => [ map { $_->name } @{$field->visibility_values} ],
+            visibility_values => \@visibility_values,
             # OVERRIDABLE
-            name              => FIELD_OVERRIDES->{$field->name}->{name} || $field->name,
             type              => FIELD_OVERRIDES->{$field->name}->{type} || $field->type,
-            is_mandatory      => FIELD_OVERRIDES->{$field->name}->{is_mandatory} || $field->is_mandatory,
-            is_on_bug_entry   => FIELD_OVERRIDES->{$field->name}->{is_on_bug_entry} || $field->enter_bug,
+            is_mandatory      => FIELD_OVERRIDES->{$field->name}->{is_mandatory} || $field->is_mandatory ? 1 : 0,
+            is_on_bug_entry   => FIELD_OVERRIDES->{$field->name}->{is_on_bug_entry} || $field->enter_bug ? 1 : 0,
+            value_field       => FIELD_OVERRIDES->{$field->name}->{value_field} || $value_field,
+            visibility_field  => FIELD_OVERRIDES->{$field->name}->{visibility_field} || $visibility_field,
             # EXTRA
             immutable         => FIELD_OVERRIDES->{$field->name}->{immutable} || 0,
             multivalue        => FIELD_OVERRIDES->{$field->name}->{multivalue} ||
                                     $field->type == FIELD_TYPE_MULTI_SELECT,
-        );
-        push @fields, \%field_data;
+        };
     }
-    push @fields, EXTRA_FIELDS;
+    foreach (EXTRA_FIELDS) {
+        $fields{$_->{name}} = $_;
+    }
 
-    foreach my $field (@fields) {
-        my ($key, $type);
-        while (($key, $type) = each(%{RPC_TYPES()})) {
-            $field->{$key} = $self->type($type, $field->{$key});
+    return \%fields;
+}
+
+sub cache_base_dir {
+    return bz_locations()->{'datadir'} . '/extensions/bayotbase_cache/';
+}
+
+sub cache_ts_file {
+    my $filename = cache_base_dir().'lastupdate';
+    # Make sure timestamp file exists
+    -e $filename || open(my $fh, ">$filename") ||
+            warn "Failed to create $filename: $!";
+    return $filename;
+}
+
+sub cache_user_file {
+    my $uid = shift;
+    $uid = $uid->id if (blessed $uid);
+    $uid ||= Bugzilla->user->id || 0;
+    return cache_base_dir()."$uid.json";
+}
+
+sub cache_timestamp { return (stat cache_ts_file())[9] || time; }
+
+sub get_field_defs {
+    my %args = @_;
+    my $cache_ts = cache_timestamp();
+    my $as_json = $args{as_json} || 0;
+    my $user = $args{user} || Bugzilla->user;
+
+    my $fields = {};
+    my $json_string = "{}";
+    my $user_cache_file = cache_user_file($user);
+    my $user_cache_ts = (stat($user_cache_file))[9] || 0;
+
+    my $fh;
+    if ($cache_ts > $user_cache_ts) {
+        $fields = _generate_field_defs($user);
+        $json_string = JSON->new->utf8->encode($fields);
+        open($fh, ">$user_cache_file") and do {
+            print $fh $json_string;
+        } or warn "Failed to write $user_cache_file: $!";
+
+    } else {
+        open($fh, "<$user_cache_file") and do {
+            $json_string = join('', <$fh>);
+            $fields = JSON->new->utf8->decode($json_string) unless $as_json;
+        } or do {
+            warn "Failed to read $user_cache_file: $!";
+            $fields = _generate_field_defs($user);
+            $json_string = JSON->new->utf8->encode($fields) if $as_json;
         }
     }
-    return { fields => \@fields };
+    close $fh if defined $fh;
+    return $as_json ? $json_string : $fields;
 }
+
 1;
-
-__END__
-

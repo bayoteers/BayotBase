@@ -18,18 +18,18 @@
   <ul id="bb_common_links" class="links bb_common_links">
   [%- FOREACH item IN bb_common_links -%]
     <li>
+      [% IF NOT loop.first %]
+          <span class="separator">| </span>
+      [% END %]
       <a
       [% IF item.id %]
-          id="[% item.id %]"
+          id="[% item.id FILTER none %]"
       [% END %]
       [% IF item.href %]
-          href="[% item.href %]"
+          href="[% item.href FILTER html %]"
       [% END %]
-      >[% item.text %]</a>
+      >[% item.text FILTER html %]</a>
     </li>
-      [% IF NOT loop.last %]
-          |
-      [% END %]
   [%- END -%]
   </ul>
 [% END %]
