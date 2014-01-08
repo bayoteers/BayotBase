@@ -87,7 +87,7 @@ sub _make_bb_config {
             logged_in => JSON::false
         };
     }
-    $config->{default} = {
+    $config->{defaults} = {
         bugentry_fields => [split(/\s/,
             Bugzilla->params->{'bb_bug_entry_fields'})],
         priority => Bugzilla->params->{'defaultpriority'},

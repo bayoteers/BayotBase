@@ -144,7 +144,7 @@ var Rpc = Base.extend({
         $.jsonRPC.request(this.method, {
             params: [this.params || {}],
             success: $.proxy(this, "_onSuccess"),
-            error: $.proxy(this, "_onError"),
+            error: $.proxy(this, "_onError")
         });
 
         this._startedCb.fire(this);
@@ -183,7 +183,7 @@ var Rpc = Base.extend({
              */
             this.error = {
                 message: "Network error or other unexpected problem",
-                code: -32603,
+                code: -32603
             };
         }
         if(typeof console !== 'undefined') {
@@ -860,7 +860,7 @@ var Bug = Base.extend({
         URL: 7,
         KEYWORDS: 8,
         USER: 11,
-        BOOLEAN: 12,
+        BOOLEAN: 12
     },
 
     _initFields: function() {
@@ -886,7 +886,7 @@ var Bug = Base.extend({
                 Bug._internal[fdesc.internal_name] = fdesc.name;
             }
         }
-    },
+    }
 });
 
 Bug._initFields();
@@ -897,7 +897,7 @@ Bug._initFields();
 $.widget("bb.userautocomplete", {
     // Default options
     options: {
-        multiple: false,
+        multiple: false
     },
     /**
      * Initialize the widget
@@ -910,7 +910,7 @@ $.widget("bb.userautocomplete", {
             search: $.proxy(this, "_search"),
             source: $.proxy(this, "_source"),
             focus: $.proxy(this, "_onItemFocus"),
-            select: $.proxy(this, "_onItemSelect"),
+            select: $.proxy(this, "_onItemSelect")
         })
         .data("autocomplete")._renderItem = function(ul, item) {
             // Custom rendering for the suggestion list items
@@ -1023,7 +1023,7 @@ $.widget("bb.userautocomplete", {
             this._respCallback(result.users);
         }
         this._respCallback = null;
-    },
+    }
 });
 
 /**
@@ -1040,7 +1040,7 @@ $.widget("bb.keywordautocomplete", {
             delay: 500,
             focus: function() { return false },
             select: $.proxy(this, "_onItemSelect"),
-            source: $.proxy(this, "_source"),
+            source: $.proxy(this, "_source")
         })
         // Add spinner
         this.spinner = $("<div/>").addClass("bb-spinner")
@@ -1087,7 +1087,7 @@ $.widget("bb.keywordautocomplete", {
         var term = request.term.split(/,\s*/).pop();
         response( $.ui.autocomplete.filter(
             this.keywords, term ) );
-    },
+    }
 });
 
 /**
@@ -1110,7 +1110,7 @@ $.widget("bb.bugentry", {
         title: '',
         defaults: {},
         bug: null,
-        clone: [],
+        clone: []
     },
 
     /**
@@ -1122,7 +1122,7 @@ $.widget("bb.bugentry", {
         this.element.on("click", $.proxy(this, "_openDialog"));
         this._form = null;
         if (this.options.fields == null) {
-            this.options.fields = BB_CONFIG.default.bugentry_fields;
+            this.options.fields = BB_CONFIG.defaults.bugentry_fields;
         }
         if (this.options.clone.length && this.options.bug == null) {
             this.options.clone = [];
@@ -1163,9 +1163,9 @@ $.widget("bb.bugentry", {
                 modal: true,
                 buttons: {
                     "Save": $.proxy(this, '_saveBug'),
-                    "Cancel": function (){$(this).dialog("close");},
+                    "Cancel": function (){$(this).dialog("close");}
                 },
-                close: $.proxy(this, '_destroyDialog'),
+                close: $.proxy(this, '_destroyDialog')
             });
         }
         this._form.dialog("open");
@@ -1233,7 +1233,7 @@ $.widget("bb.bugentry", {
     _saveDone: function(bug) {
         this._destroyDialog();
         this._trigger("success", null, { bug: bug, bug_id: bug.id });
-    },
+    }
 });
 
 /**
