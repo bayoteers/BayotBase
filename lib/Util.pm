@@ -418,7 +418,7 @@ sub get_field_defs {
     my $fh;
     if ($cache_ts > $user_cache_ts) {
         $fields = _generate_field_defs($user);
-        $json_string = JSON->new->utf8->encode($fields);
+        $json_string = JSON->new->encode($fields);
         open($fh, ">$user_cache_file") and do {
             print $fh $json_string;
         } or warn "Failed to write $user_cache_file: $!";
@@ -426,11 +426,11 @@ sub get_field_defs {
     } else {
         open($fh, "<$user_cache_file") and do {
             $json_string = join('', <$fh>);
-            $fields = JSON->new->utf8->decode($json_string) unless $as_json;
+            $fields = JSON->new->decode($json_string) unless $as_json;
         } or do {
             warn "Failed to read $user_cache_file: $!";
             $fields = _generate_field_defs($user);
-            $json_string = JSON->new->utf8->encode($fields) if $as_json;
+            $json_string = JSON->new->encode($fields) if $as_json;
         }
     }
     close $fh if defined $fh;
