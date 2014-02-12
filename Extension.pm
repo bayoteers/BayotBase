@@ -96,7 +96,7 @@ sub _make_bb_config {
         op_sys => Bugzilla->params->{'defaultopsys'},
     };
 
-    $vars->{bb_config} = JSON->new->utf8->encode($config);
+    $vars->{bb_config} = JSON->new->encode($config);
 }
 
 sub install_filesystem {
