@@ -78,6 +78,7 @@ sub _make_bb_config {
         $config->{user} = {
             logged_in => JSON::true,
             login => Bugzilla->user->login,
+            real_name => Bugzilla->user->name,
             email => Bugzilla->user->email,
             id => Bugzilla->user->id,
             groups => [ sort map { $_->{name} } @{Bugzilla->user->groups} ]
