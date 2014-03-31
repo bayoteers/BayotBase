@@ -1200,7 +1200,10 @@ $.widget("bb.bugentry", {
             var field = required[i];
             if(this.options.fields.indexOf(field.name) != -1) continue;
             var input = this._bug.createInput(field, false, true);
-            this._form.append(input);
+            var item = $('<li class="'+field.name+'">')
+                .append(this._bug.createLabel(field))
+                .append(input);
+            list.append(item);
         }
     },
 
