@@ -204,17 +204,6 @@ var Rpc = Base.extend({
  * jQuery XMLHttpRequest is in progress.
  */
 var RpcProgressView = {
-    _CSS_PROPS: {
-        background: '#7f0000',
-        color: 'white',
-        padding: '0.5ex',
-        position: 'fixed',
-        top: 0,
-        right: 0,
-        'z-index': 9999999,
-        'text-decoration': 'blink'
-    },
-
     init: function()
     {
         if(this._progress) {
@@ -222,8 +211,7 @@ var RpcProgressView = {
         }
 
         this._active = 0;
-        this._progress = $('<div>Working..</div>');
-        this._progress.css(this._CSS_PROPS);
+        this._progress = $('<div class="bb-working">Working&nbsp;<span class="bb-spinner"></span></div>');
         this._progress.hide();
         this._progress.appendTo('body');
         $(document).ajaxSend($.proxy(this, "_onAjaxSend"));

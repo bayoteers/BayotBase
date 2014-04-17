@@ -3,10 +3,21 @@
 }
 
 .bb-spinner {
-    display: inline;
+    display: inline-block;
     width:16px;
     height:16px;
     background-image: url(images/spinner.gif);
+}
+
+div.bb-working {
+    background: white;
+    border: 1px solid gray;
+    padding: 0.5em;
+    border-radius: 0.5em;
+    position: fixed;
+    top: 1em;
+    right: 0.5em;
+    z-index: 9999999;
 }
 
 form.bugentry ul {
