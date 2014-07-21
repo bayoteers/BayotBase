@@ -19,6 +19,8 @@ use strict;
 use JSON;
 use base qw(Bugzilla::Extension);
 
+use Bugzilla::Hook;
+use Bugzilla::Install::Filesystem;
 use Bugzilla::Extension::BayotBase::Util;
 
 our $VERSION = '0.01';
