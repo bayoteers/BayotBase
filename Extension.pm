@@ -75,19 +75,25 @@ sub _group_identifiers {
 sub _make_bb_config {
     my ($args, $vars, $file) = @_;
 
+    my $user = Bugzilla->user;
     my $config = {};
-    if(Bugzilla->user->id) {
+    if($user->id) {
         $config->{user} = {
             logged_in => JSON::true,
-            login => Bugzilla->user->login,
-            real_name => Bugzilla->user->name,
-            email => Bugzilla->user->email,
-            id => Bugzilla->user->id,
-            groups => [ sort map { $_->{name} } @{Bugzilla->user->groups} ]
+            login => $user->login,
+            real_name => $user->name,
+            email => $user->email,
+            id => $user->id,
+            groups => [ sort map { $_->{name} } @{$user->groups} ],
+            enterable_products => [
+                sort map { $_->{name} } @{$user->get_enterable_products}
+            ],
         };
     } else {
         $config->{user} = {
-            logged_in => JSON::false
+            logged_in => JSON::false,
+            groups => [],
+            enterable_products => [],
         };
     }
     $config->{defaults} = {

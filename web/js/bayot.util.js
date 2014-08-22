@@ -770,7 +770,11 @@ var Bug = Base.extend({
                 option.attr('selected', 'selected');
                 element.prepend(option);
             } else {
-                element.append(option);
+                if (name != 'product'
+                    || BB_CONFIG.user.enterable_products.indexOf(value) != -1)
+                {
+                    element.append(option);
+                }
             }
         });
     },
