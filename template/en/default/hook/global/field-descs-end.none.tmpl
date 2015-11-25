@@ -1,0 +1,33 @@
+[%#
+  # This Source Code Form is subject to the terms of the Mozilla Public
+  # License, v. 2.0. If a copy of the MPL was not distributed with this
+  # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+  #
+  # Copyright (C) 2015 Jolla Ltd.
+  # Contact: Pami Ketolainen <pami.ketolainen@jollamobile.com>
+  #%]
+
+[% IF in_template_var %]
+  [%# Adds alternative field names used in webservices in the descripions %]
+  [% additional_values = {
+     "blocks"           => vars.field_descs.blocked,
+     "comment"          => vars.field_descs.longdesc,
+     "creation_time"    => vars.field_descs.creation_ts,
+     "creator"          => vars.field_descs.reporter,
+     "depends_on"       => vars.field_descs.dependson,
+     "dupe_of"          => vars.field_descs.dup_id,
+     "id"               => vars.field_descs.bug_id,
+     "is_confirmed"     => vars.field_descs.everconfirmed,
+     "is_cc_accessible" => vars.field_descs.cclist_accessible,
+     "is_creator_accessible" => vars.field_descs.reporter_accessible,
+     "last_change_time" => vars.field_descs.delta_ts,
+     "platform"         => vars.field_descs.rep_platform,
+     "severity"         => vars.field_descs.bug_severity,
+     "status"           => vars.field_descs.bug_status,
+     "summary"          => vars.field_descs.short_desc,
+     "url"              => vars.field_descs.bug_file_loc,
+     "white_board"      => vars.field_descs.status_whiteboard,
+  } %]
+  [% vars.field_descs.import(additional_values) %]
+[% END %]
+
